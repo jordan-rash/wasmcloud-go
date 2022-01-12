@@ -25,6 +25,7 @@ var HOST_ID string
 func main() {
 	if len(os.Args[1:]) < 2 {
 		log.Errorln("Input needs at least 2 arguments")
+		os.Exit(1)
 	}
 
 	nc, err := nats.Connect(nats.DefaultURL)

@@ -73,11 +73,15 @@ func (c client) GetHostInventory(hostId string) hostStatus {
 }
 
 // NATs topic: get.claims
-func (c client) GetClaims() []string {
+func (c client) GetClaims() claims {
 	subject := broker.Queries{}.Claims(c.nsprefix)
 	log.Debug(subject)
 
-	return printResults(c.nc, subject, nil)
+	claims := claims{}
+	claimsRaw := printResults(c.nc, subject, nil)
+	json.Unmarshal([]byte(claimsRaw[0]), &claims)
+
+	return claims
 }
 
 // NATs topic: auction.actor
