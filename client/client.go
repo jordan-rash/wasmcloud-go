@@ -2,12 +2,28 @@ package client
 
 import (
 	"encoding/json"
-	"fmt"
+	"os"
 	"time"
 
+	"github.com/gobuffalo/envy"
 	"github.com/jordan-rash/wasmcloud-go/broker"
 	"github.com/nats-io/nats.go"
+	log "github.com/sirupsen/logrus"
 )
+
+func init() {
+	log.SetOutput(os.Stdout)
+	switch envy.Get("LOG_LVL", "ERROR") {
+	case "WARN":
+		log.SetLevel(log.WarnLevel)
+	case "DEBUG":
+		log.SetLevel(log.DebugLevel)
+	case "TRACE":
+		log.SetLevel(log.TraceLevel)
+	default:
+		log.SetLevel(log.ErrorLevel)
+	}
+}
 
 type client struct {
 	nc       *nats.Conn
@@ -28,7 +44,7 @@ func (c client) GetHosts(timeout time.Duration) []host {
 	var hosts []host
 
 	subject := broker.Queries{}.Hosts(c.nsprefix)
-	fmt.Println(subject)
+	log.Debug(subject)
 	hostsRaw := printResults(c.nc, subject, nil)
 	for _, h := range hostsRaw {
 		tHost := host{}
@@ -42,30 +58,35 @@ func (c client) GetHosts(timeout time.Duration) []host {
 // NATs topic: get.{host}.inv
 func (c client) GetHostInventory(hostId string) hostStatus {
 	subject := broker.Queries{}.HostInventory(c.nsprefix, hostId)
-	fmt.Println(subject)
+	log.Debug(subject)
 
 	hoststatus := printResults(c.nc, subject, nil)
 	hs := hostStatus{}
 
+	if len(hoststatus) < 1 {
+		log.Error("Did not find host status")
+		return hostStatus{}
+	}
 	json.Unmarshal([]byte(hoststatus[0]), &hs)
 
 	return hs
 }
 
 // NATs topic: get.claims
-func (c client) GetClaims() {
+func (c client) GetClaims() []string {
 	subject := broker.Queries{}.Claims(c.nsprefix)
-	fmt.Println(subject)
-	printResults(c.nc, subject, nil)
+	log.Debug(subject)
+
+	return printResults(c.nc, subject, nil)
 }
 
 // NATs topic: auction.actor
-func (c client) PerformActorAuction(actorRef string, constraints map[string]interface{}, timeout time.Duration) {
+func (c client) PerformActorAuction(actorRef string, constraints map[string]string, timeout time.Duration) []string {
 	subject := broker.ActorAuctionSubject(c.nsprefix)
-	fmt.Println(subject)
+	log.Debug(subject)
 	data := struct {
-		ActorRef    string                 `json:"actor_ref"`
-		Constraints map[string]interface{} `json:"constraints"`
+		ActorRef    string            `json:"actor_ref"`
+		Constraints map[string]string `json:"constraints"`
 	}{
 		ActorRef:    actorRef,
 		Constraints: constraints,
@@ -74,17 +95,17 @@ func (c client) PerformActorAuction(actorRef string, constraints map[string]inte
 	if err != nil {
 		panic(err)
 	}
-	printResults(c.nc, subject, &b_data)
+	return printResults(c.nc, subject, &b_data)
 }
 
 // NATs topic: auction.provider
-func (c client) PerformProviderAuction(providerRef string, linkName string, constraints map[string]interface{}, timeout time.Duration) {
+func (c client) PerformProviderAuction(providerRef string, linkName string, constraints map[string]string, timeout time.Duration) []string {
 	subject := broker.ProviderAuctionSubject(c.nsprefix)
-	fmt.Println(subject)
+	log.Debug(subject)
 	data := struct {
-		ProviderRef string                 `json:"provider_ref"`
-		LinkName    string                 `json:"link_name"`
-		Constraints map[string]interface{} `json:"constraints"`
+		ProviderRef string            `json:"provider_ref"`
+		LinkName    string            `json:"link_name"`
+		Constraints map[string]string `json:"constraints"`
 	}{
 		ProviderRef: providerRef,
 		Constraints: constraints,
@@ -94,18 +115,18 @@ func (c client) PerformProviderAuction(providerRef string, linkName string, cons
 	if err != nil {
 		panic(err)
 	}
-	printResults(c.nc, subject, &b_data)
+	return printResults(c.nc, subject, &b_data)
 }
 
 // NATs topic: cmd.{host}.la
-func (c client) StartActor(hostID string, actorRef string, count int, annotations map[string]interface{}) {
+func (c client) StartActor(hostID string, actorRef string, count int, annotations map[string]string) []string {
 	subject := broker.Commands{}.StartActor(c.nsprefix, hostID)
-	fmt.Println(subject)
+	log.Debug(subject)
 	data := struct {
-		ActorRef    string                 `json:"actor_ref"`
-		HostID      string                 `json:"host_id"`
-		Count       int                    `json:"count"`
-		Annotations map[string]interface{} `json:"annotations"`
+		ActorRef    string            `json:"actor_ref"`
+		HostID      string            `json:"host_id"`
+		Count       int               `json:"count"`
+		Annotations map[string]string `json:"annotations"`
 	}{
 		ActorRef:    actorRef,
 		HostID:      hostID,
@@ -118,19 +139,19 @@ func (c client) StartActor(hostID string, actorRef string, count int, annotation
 		panic(err)
 	}
 
-	printResults(c.nc, subject, &b_data)
+	return printResults(c.nc, subject, &b_data)
 }
 
 // NATs topic: cmd.{host}.lp
-func (c client) StartProvider(hostID string, providerRef string, linkName string, annotations map[string]interface{}, providerConfiguration string) {
+func (c client) StartProvider(hostID string, providerRef string, linkName string, annotations map[string]string, providerConfiguration string) []string {
 	subject := broker.Commands{}.StartProvider(c.nsprefix, hostID)
-	fmt.Println(subject)
+	log.Debug(subject)
 	data := struct {
-		ProviderRef   string                 `json:"provider_ref"`
-		HostID        string                 `json:"host_id"`
-		LinkName      string                 `json:"link_name"`
-		Annotations   map[string]interface{} `json:"annotations"`
-		Configuration string                 `json:"configuration"`
+		ProviderRef   string            `json:"provider_ref"`
+		HostID        string            `json:"host_id"`
+		LinkName      string            `json:"link_name"`
+		Annotations   map[string]string `json:"annotations"`
+		Configuration string            `json:"configuration"`
 	}{
 		ProviderRef:   providerRef,
 		HostID:        hostID,
@@ -144,19 +165,19 @@ func (c client) StartProvider(hostID string, providerRef string, linkName string
 		panic(err)
 	}
 
-	printResults(c.nc, subject, &b_data)
+	return printResults(c.nc, subject, &b_data)
 }
 
 // NATs topic: linkdefs.put
-func (c client) AdvertiseLink(actorID string, providerID string, contractID string, linkName string, values map[string]interface{}) {
+func (c client) AdvertiseLink(actorID string, providerID string, contractID string, linkName string, values map[string]string) []string {
 	subject := broker.AdvertiseLink(c.nsprefix)
-	fmt.Println(subject)
+	log.Debug(subject)
 	data := struct {
-		ActorID    string                 `json:"actor_id"`
-		ProviderID string                 `json:"provider_id"`
-		ContractID string                 `json:"contract_id"`
-		LinkName   string                 `json:"link_name"`
-		Value      map[string]interface{} `json:"values"`
+		ActorID    string            `json:"actor_id"`
+		ProviderID string            `json:"provider_id"`
+		ContractID string            `json:"contract_id"`
+		LinkName   string            `json:"link_name"`
+		Value      map[string]string `json:"values"`
 	}{
 		ActorID:    actorID,
 		ProviderID: providerID,
@@ -170,29 +191,127 @@ func (c client) AdvertiseLink(actorID string, providerID string, contractID stri
 		panic(err)
 	}
 
-	printResults(c.nc, subject, &b_data)
+	return printResults(c.nc, subject, &b_data)
 
 }
 
 // NATs topic: linkdefs.del
-func (c client) RemoveLink(actorID string, contractID string, linkName string) {}
+func (c client) RemoveLink(actorID string, contractID string, linkName string) []string {
+	subject := broker.RemoveLink(c.nsprefix)
+	log.Debug(subject)
+	data := struct {
+		ActorID    string `json:"actor_id"`
+		ContractID string `json:"contract_id"`
+		LinkName   string `json:"link_name"`
+	}{
+		ActorID:    actorID,
+		ContractID: contractID,
+		LinkName:   linkName,
+	}
+
+	b_data, err := json.Marshal(data)
+	if err != nil {
+		panic(err)
+	}
+	return printResults(c.nc, subject, &b_data)
+}
 
 // NATs topic: get.links
-func (c client) QueryLinks() {}
+func (c client) QueryLinks() []string {
+	subject := broker.Queries{}.LinkDefinitions(c.nsprefix)
+	log.Debug(subject)
+	return printResults(c.nc, subject, nil)
+}
 
 // NATs topic: cmd.{host}.upd
-func (c client) UpdateActor(hostID string, existingActorID string, newActorRef string, annotations map[string]string) {
+func (c client) UpdateActor(hostID string, existingActorID string, newActorRef string, annotations map[string]string) []string {
+	subject := broker.Commands{}.UpdateActor(c.nsprefix, hostID)
+	log.Debug(subject)
+	data := struct {
+		HostID          string            `json:"host_id"`
+		ExistingActorID string            `json:"actor_id"`
+		NewActorRef     string            `json:"new_actor_ref"`
+		Annotations     map[string]string `json:"annotations"`
+	}{
+		HostID:          hostID,
+		ExistingActorID: existingActorID,
+		NewActorRef:     newActorRef,
+		Annotations:     annotations,
+	}
+
+	b_data, err := json.Marshal(data)
+	if err != nil {
+		panic(err)
+	}
+	return printResults(c.nc, subject, &b_data)
 }
 
 // NATs topic: cmd.{host}.sa
-func (c client) StopActor(hostID string, actorRef string, count int, annotations map[string]string) {}
+func (c client) StopActor(hostID string, actorRef string, count int, annotations map[string]string) []string {
+	subject := broker.Commands{}.StopActor(c.nsprefix, hostID)
+	log.Debug(subject)
+	data := struct {
+		HostID      string            `json:"host_id"`
+		ActorRef    string            `json:"actor_ref"`
+		Count       int               `json:"count"`
+		Annotations map[string]string `json:"annotations"`
+	}{
+		HostID:      hostID,
+		ActorRef:    actorRef,
+		Count:       count,
+		Annotations: annotations,
+	}
+
+	b_data, err := json.Marshal(data)
+	if err != nil {
+		panic(err)
+	}
+	return printResults(c.nc, subject, &b_data)
+}
 
 // NATs topic: cmd.{host}.sp
-func (c client) StopProvider(hostID string, providerRef string, linkName string, contractID string, annotations map[string]string) {
+func (c client) StopProvider(hostID string, providerRef string, linkName string, contractID string, annotations map[string]string) []string {
+	subject := broker.Commands{}.StopProvider(c.nsprefix, hostID)
+	log.Debug(subject)
+	data := struct {
+		HostID      string            `json:"host_id"`
+		ProviderRef string            `json:"provider_ref"`
+		LinkName    string            `json:"link_name"`
+		ContractID  string            `json:"contract_id"`
+		Annotations map[string]string `json:"annotations"`
+	}{
+		HostID:      hostID,
+		ProviderRef: providerRef,
+		LinkName:    linkName,
+		ContractID:  contractID,
+		Annotations: annotations,
+	}
+
+	b_data, err := json.Marshal(data)
+	if err != nil {
+		panic(err)
+	}
+	return printResults(c.nc, subject, &b_data)
 }
 
 // NATs topic: cmd.{host}.stop
-func (c client) StopHost(hostID string, timeout time.Duration) {}
+func (c client) StopHost(hostID string, timeout time.Duration) []string {
+	subject := broker.Commands{}.StopHost(c.nsprefix, hostID)
+	log.Debug(subject)
+
+	data := struct {
+		HostID  string `json:"host_id"`
+		Timeout int64  `json:"timeout"`
+	}{
+		HostID:  hostID,
+		Timeout: timeout.Milliseconds(),
+	}
+	b_data, err := json.Marshal(data)
+	if err != nil {
+		panic(err)
+	}
+	return printResults(c.nc, subject, &b_data)
+}
 
 func printResults(nc *nats.Conn, subject string, data *[]byte) []string {
 	timeout := time.Second * 1
@@ -223,7 +342,19 @@ func printResults(nc *nats.Conn, subject string, data *[]byte) []string {
 		case <-time.After(timeout):
 			s.Unsubscribe()
 			s.Drain()
+			if envy.Get("PRETTY_PRINT", "false") == "true" {
+				PrettyPrint(ret)
+			}
 			return ret
 		}
 	}
+}
+
+// this is temporary
+func PrettyPrint(v interface{}) (err error) {
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err == nil {
+		log.Println(string(b))
+	}
+	return
 }

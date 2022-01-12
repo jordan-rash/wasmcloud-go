@@ -16,7 +16,7 @@ func main() {
 	hosts := c.GetHosts(time.Second * 1)
 	HOST_ID = hosts[0].ID
 
-	annotations := make(map[string]interface{})
+	annotations := make(map[string]string)
 
 	c.StartActor(
 		HOST_ID,
@@ -36,7 +36,7 @@ func main() {
 	time.Sleep(time.Second * 10)
 	hostInv := c.GetHostInventory(HOST_ID)
 
-	linkValues := make(map[string]interface{})
+	linkValues := make(map[string]string)
 	linkValues["address"] = "0.0.0.0:3000"
 	c.AdvertiseLink(
 		hostInv.Actors[0].ID,
