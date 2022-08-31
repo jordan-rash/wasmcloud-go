@@ -12,5 +12,5 @@ type claim struct {
 }
 
 type claims struct {
-	Claims []claim `json:"claims"`
+	Claims []claim `json:"claims,omitempty"`
 }
