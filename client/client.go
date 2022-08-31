@@ -90,7 +90,7 @@ func (c client) PerformActorAuction(actorRef string, constraints map[string]stri
 	log.Debug(subject)
 	data := struct {
 		ActorRef    string            `json:"actor_ref"`
-		Constraints map[string]string `json:"constraints"`
+		Constraints map[string]string `json:"constraints,omitempty"`
 	}{
 		ActorRef:    actorRef,
 		Constraints: constraints,
@@ -109,7 +109,7 @@ func (c client) PerformProviderAuction(providerRef string, linkName string, cons
 	data := struct {
 		ProviderRef string            `json:"provider_ref"`
 		LinkName    string            `json:"link_name"`
-		Constraints map[string]string `json:"constraints"`
+		Constraints map[string]string `json:"constraints,omitempty"`
 	}{
 		ProviderRef: providerRef,
 		Constraints: constraints,
@@ -130,7 +130,7 @@ func (c client) StartActor(hostID string, actorRef string, count int, annotation
 		ActorRef    string            `json:"actor_ref"`
 		HostID      string            `json:"host_id"`
 		Count       int               `json:"count"`
-		Annotations map[string]string `json:"annotations"`
+		Annotations map[string]string `json:"annotations,omitempty"`
 	}{
 		ActorRef:    actorRef,
 		HostID:      hostID,
@@ -154,7 +154,7 @@ func (c client) StartProvider(hostID string, providerRef string, linkName string
 		ProviderRef   string            `json:"provider_ref"`
 		HostID        string            `json:"host_id"`
 		LinkName      string            `json:"link_name"`
-		Annotations   map[string]string `json:"annotations"`
+		Annotations   map[string]string `json:"annotations,omitempty"`
 		Configuration string            `json:"configuration"`
 	}{
 		ProviderRef:   providerRef,
@@ -181,7 +181,7 @@ func (c client) AdvertiseLink(actorID string, providerID string, contractID stri
 		ProviderID string            `json:"provider_id"`
 		ContractID string            `json:"contract_id"`
 		LinkName   string            `json:"link_name"`
-		Value      map[string]string `json:"values"`
+		Value      map[string]string `json:"values,omitempty"`
 	}{
 		ActorID:    actorID,
 		ProviderID: providerID,
@@ -235,7 +235,7 @@ func (c client) UpdateActor(hostID string, existingActorID string, newActorRef s
 		HostID          string            `json:"host_id"`
 		ExistingActorID string            `json:"actor_id"`
 		NewActorRef     string            `json:"new_actor_ref"`
-		Annotations     map[string]string `json:"annotations"`
+		Annotations     map[string]string `json:"annotations,omitempty"`
 	}{
 		HostID:          hostID,
 		ExistingActorID: existingActorID,
@@ -258,7 +258,7 @@ func (c client) StopActor(hostID string, actorRef string, count int, annotations
 		HostID      string            `json:"host_id"`
 		ActorRef    string            `json:"actor_ref"`
 		Count       int               `json:"count"`
-		Annotations map[string]string `json:"annotations"`
+		Annotations map[string]string `json:"annotations,omitempty"`
 	}{
 		HostID:      hostID,
 		ActorRef:    actorRef,
@@ -282,7 +282,7 @@ func (c client) StopProvider(hostID string, providerRef string, linkName string,
 		ProviderRef string            `json:"provider_ref"`
 		LinkName    string            `json:"link_name"`
 		ContractID  string            `json:"contract_id"`
-		Annotations map[string]string `json:"annotations"`
+		Annotations map[string]string `json:"annotations,omitempty"`
 	}{
 		HostID:      hostID,
 		ProviderRef: providerRef,
