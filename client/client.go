@@ -11,6 +11,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const DEFAULT_NATS_TIMEOUT = 2 * time.Second
+
 func init() {
 	log.SetOutput(os.Stdout)
 	switch envy.Get("LOG_LVL", "ERROR") {
@@ -45,7 +47,7 @@ func (c client) GetHosts(timeout time.Duration) []host {
 
 	subject := broker.Queries{}.Hosts(c.nsprefix)
 	log.Debug(subject)
-	hostsRaw := printResults(c.nc, subject, nil)
+	hostsRaw := printResults(c.nc, subject, nil, &timeout)
 	for _, h := range hostsRaw {
 		tHost := host{}
 		json.Unmarshal([]byte(h), &tHost)
@@ -60,7 +62,7 @@ func (c client) GetHostInventory(hostId string) hostStatus {
 	subject := broker.Queries{}.HostInventory(c.nsprefix, hostId)
 	log.Debug(subject)
 
-	hoststatus := printResults(c.nc, subject, nil)
+	hoststatus := printResults(c.nc, subject, nil, nil)
 	hs := hostStatus{}
 
 	if len(hoststatus) < 1 {
@@ -78,7 +80,7 @@ func (c client) GetClaims() claims {
 	log.Debug(subject)
 
 	claims := claims{}
-	claimsRaw := printResults(c.nc, subject, nil)
+	claimsRaw := printResults(c.nc, subject, nil, nil)
 	json.Unmarshal([]byte(claimsRaw[0]), &claims)
 
 	return claims
@@ -99,7 +101,7 @@ func (c client) PerformActorAuction(actorRef string, constraints map[string]stri
 	if err != nil {
 		panic(err)
 	}
-	return printResults(c.nc, subject, &b_data)
+	return printResults(c.nc, subject, &b_data, nil)
 }
 
 // NATs topic: auction.provider
@@ -119,7 +121,7 @@ func (c client) PerformProviderAuction(providerRef string, linkName string, cons
 	if err != nil {
 		panic(err)
 	}
-	return printResults(c.nc, subject, &b_data)
+	return printResults(c.nc, subject, &b_data, nil)
 }
 
 // NATs topic: cmd.{host}.la
@@ -143,7 +145,7 @@ func (c client) StartActor(hostID string, actorRef string, count int, annotation
 		panic(err)
 	}
 
-	return printResults(c.nc, subject, &b_data)
+	return printResults(c.nc, subject, &b_data, nil)
 }
 
 // NATs topic: cmd.{host}.lp
@@ -169,7 +171,7 @@ func (c client) StartProvider(hostID string, providerRef string, linkName string
 		panic(err)
 	}
 
-	return printResults(c.nc, subject, &b_data)
+	return printResults(c.nc, subject, &b_data, nil)
 }
 
 // NATs topic: linkdefs.put
@@ -195,7 +197,7 @@ func (c client) AdvertiseLink(actorID string, providerID string, contractID stri
 		panic(err)
 	}
 
-	return printResults(c.nc, subject, &b_data)
+	return printResults(c.nc, subject, &b_data, nil)
 
 }
 
@@ -217,14 +219,14 @@ func (c client) RemoveLink(actorID string, contractID string, linkName string) [
 	if err != nil {
 		panic(err)
 	}
-	return printResults(c.nc, subject, &b_data)
+	return printResults(c.nc, subject, &b_data, nil)
 }
 
 // NATs topic: get.links
 func (c client) QueryLinks() []string {
 	subject := broker.Queries{}.LinkDefinitions(c.nsprefix)
 	log.Debug(subject)
-	return printResults(c.nc, subject, nil)
+	return printResults(c.nc, subject, nil, nil)
 }
 
 // NATs topic: cmd.{host}.upd
@@ -247,7 +249,7 @@ func (c client) UpdateActor(hostID string, existingActorID string, newActorRef s
 	if err != nil {
 		panic(err)
 	}
-	return printResults(c.nc, subject, &b_data)
+	return printResults(c.nc, subject, &b_data, nil)
 }
 
 // NATs topic: cmd.{host}.sa
@@ -270,7 +272,7 @@ func (c client) StopActor(hostID string, actorRef string, count int, annotations
 	if err != nil {
 		panic(err)
 	}
-	return printResults(c.nc, subject, &b_data)
+	return printResults(c.nc, subject, &b_data, nil)
 }
 
 // NATs topic: cmd.{host}.sp
@@ -295,7 +297,7 @@ func (c client) StopProvider(hostID string, providerRef string, linkName string,
 	if err != nil {
 		panic(err)
 	}
-	return printResults(c.nc, subject, &b_data)
+	return printResults(c.nc, subject, &b_data, nil)
 }
 
 // NATs topic: cmd.{host}.stop
@@ -314,11 +316,14 @@ func (c client) StopHost(hostID string, timeout time.Duration) []string {
 	if err != nil {
 		panic(err)
 	}
-	return printResults(c.nc, subject, &b_data)
+	return printResults(c.nc, subject, &b_data, nil)
 }
 
-func printResults(nc *nats.Conn, subject string, data *[]byte) []string {
-	timeout := time.Second * 1
+func printResults(nc *nats.Conn, subject string, data *[]byte, timeoutOverride *time.Duration) []string {
+	timeout := DEFAULT_NATS_TIMEOUT
+	if timeoutOverride != nil {
+		timeout = *timeoutOverride
+	}
 	sub := nats.NewInbox()
 	if data == nil {
 		err := nc.PublishRequest(subject, sub, nil)
