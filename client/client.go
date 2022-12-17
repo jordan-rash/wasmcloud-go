@@ -323,6 +323,12 @@ func (c client) printResults(nc *nats.Conn, subject string, data *[]byte, timeou
 		timeout = *timeoutOverride
 	}
 	sub := nats.NewInbox()
+	ch := make(chan *nats.Msg)
+	s, err := nc.ChanSubscribe(sub, ch)
+	if err != nil {
+		panic(err)
+	}
+
 	if data == nil {
 		err := nc.PublishRequest(subject, sub, nil)
 		if err != nil {
@@ -333,12 +339,6 @@ func (c client) printResults(nc *nats.Conn, subject string, data *[]byte, timeou
 		if err != nil {
 			panic(err)
 		}
-	}
-
-	ch := make(chan *nats.Msg)
-	s, err := nc.ChanSubscribe(sub, ch)
-	if err != nil {
-		panic(err)
 	}
 
 	var ret []string
