@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	_ "embed"
 	"encoding/json"
 	"log"
 	"os"
@@ -25,9 +24,6 @@ import (
 	core "github.com/wasmcloud/interfaces/core/tinygo"
 	msgpack "github.com/wasmcloud/tinygo-msgpack"
 )
-
-//embed:go.wasm
-var wasmMod []byte
 
 var mod api.Module
 var tempInv core.Invocation
