@@ -1,9 +1,18 @@
 package broker
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+
+	cloudevents "github.com/cloudevents/sdk-go/v2"
+	"github.com/google/uuid"
+)
+
+const WASMCLOUD_DEFAULT_NSPREFIX string = "default"
 
 type Commands struct{}
 type Queries struct{}
+type Event struct{}
 
 func prefix(nsprefix string) string {
 	if nsprefix == "" {
@@ -62,4 +71,24 @@ func (Queries) HostInventory(nsprefix, host string) string {
 }
 func (Queries) Hosts(nsprefix string) string {
 	return fmt.Sprintf("%s.ping.hosts", prefix(nsprefix))
+}
+
+func (Event) HostStart(nsprefix, hostid string) (string, cloudevents.Event) {
+	event := cloudevents.NewEvent()
+	event.SetData(cloudevents.ApplicationJSON, map[string]interface{}{"friendly_name": "yolo-bro-1234", "labels": map[string]string{"hostcore.arch": "armv61", "hostcore.os": "raspbian", "hostcore.osfamily": "unix", "hostcore.version": "v0.0.0-wasmcloud_go", "hostcore.runtime": "wazero"}, "version": "v0.0.0-wasmcloud_go"})
+	event.SetID(uuid.New().String())
+	event.SetSource(hostid) // "N" key
+	event.SetType("com.wasmcloud.lattice.host_started")
+
+	return ControlEvent(nsprefix), event
+}
+
+func (Event) HostHeartbeat(nsprefix, hostid string, startTime time.Time) (string, cloudevents.Event) {
+	event := cloudevents.NewEvent()
+	event.SetData(cloudevents.ApplicationJSON, map[string]interface{}{"actors": []string{}, "providers": []string{}, "uptime_human": "forever seconds", "uptime_seconds": int(time.Since(startTime).Seconds()), "version": "v0.0.0-wasmcloud_go", "friendly_name": "yolo-bro-1234", "labels": map[string]string{"hostcore.arch": "armv61", "hostcore.os": "raspbian", "hostcore.osfamily": "unix", "hostcore.version": "v0.0.0-wasmcloud_go", "hostcore.runtime": "wazero"}})
+	event.SetID(uuid.New().String())
+	event.SetSource(hostid) // "N" key
+	event.SetType("com.wasmcloud.lattice.host_heartbeat")
+
+	return ControlEvent(nsprefix), event
 }
