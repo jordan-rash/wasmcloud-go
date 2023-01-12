@@ -17,7 +17,7 @@ type WasmcloudHost struct {
 	WasmcloudLatticePrefix      string   `kong:"name='lattice_prefix',group='Host Settings',env=WASMCLOUD_LATTICE_PREFIX"`
 
 	// NATs Configuration
-	WasmcloudNatsRemoteUrl string `kong:"'nats_remote_url',group='NATS Settings',env=WASMCLOUD_NATS_REMOTE_URL,default='127.0.0.1:7422'"`
+	WasmcloudNatsRemoteUrl string `kong:"name='nats_remote_url',group='NATS Settings',env=WASMCLOUD_NATS_REMOTE_URL,default='127.0.0.1:7422'"`
 	WasmcloudNatsJsDomain  string `kong:"name='nats_js_domain',group='NATS Settings',env=WASMCLOUD_NATS_JS_DOMAIN,default='core'"`
 
 	// RPC Settings
