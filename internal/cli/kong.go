@@ -13,7 +13,7 @@ import (
 
 func (c *WasmcloudHost) Parse() {
 	_ = kong.Parse(c,
-		kong.Name("wasmcloud_go"),
+		kong.Name("wasmcloud-go"),
 		kong.Description("wasmcloud host implementation written in Go using Wazero"),
 		kong.UsageOnError(),
 		kong.ConfigureHelp(kong.HelpOptions{
