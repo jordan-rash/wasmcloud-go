@@ -1,10 +1,10 @@
 package broker
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
-	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/google/uuid"
 )
 
@@ -73,22 +73,70 @@ func (Queries) Hosts(nsprefix string) string {
 	return fmt.Sprintf("%s.ping.hosts", prefix(nsprefix))
 }
 
-func (Event) HostStart(nsprefix, hostid string) (string, cloudevents.Event) {
-	event := cloudevents.NewEvent()
-	event.SetData(cloudevents.ApplicationJSON, map[string]interface{}{"friendly_name": "yolo-bro-1234", "labels": map[string]string{"hostcore.arch": "armv61", "hostcore.os": "raspbian", "hostcore.osfamily": "unix", "hostcore.version": "v0.0.0-wasmcloud_go", "hostcore.runtime": "wazero"}, "version": "v0.0.0-wasmcloud_go"})
-	event.SetID(uuid.New().String())
-	event.SetSource(hostid) // "N" key
-	event.SetType("com.wasmcloud.lattice.host_started")
-
-	return ControlEvent(nsprefix), event
+func (Event) HostStart(nsprefix, hostid string) (string, []byte) {
+	ce := cloudevent{
+		Spec:        "1.0",
+		Id:          uuid.New().String(),
+		Source:      hostid,
+		Type:        "com.wasmcloud.lattice.host_started",
+		ContentType: "application/json",
+		Data: cedata{
+			Actors:    []string{},
+			Providers: []string{},
+			Friendly:  "yolo-bro-1234",
+			Labels: map[string]string{
+				"hostcore.arch":     "armv61",
+				"hostcore.os":       "raspbian",
+				"hostcore.osfamily": "unix",
+				"hostcore.version":  "v0.0.0-wasmcloud_go",
+				"hostcore.runtime":  "wazero",
+			},
+			Version: "v0.0.0-wasmcloud_go",
+		},
+	}
+	ceb, _ := json.Marshal(ce)
+	return ControlEvent(nsprefix), ceb
 }
 
-func (Event) HostHeartbeat(nsprefix, hostid string, startTime time.Time) (string, cloudevents.Event) {
-	event := cloudevents.NewEvent()
-	event.SetData(cloudevents.ApplicationJSON, map[string]interface{}{"actors": []string{}, "providers": []string{}, "uptime_human": "forever seconds", "uptime_seconds": int(time.Since(startTime).Seconds()), "version": "v0.0.0-wasmcloud_go", "friendly_name": "yolo-bro-1234", "labels": map[string]string{"hostcore.arch": "armv61", "hostcore.os": "raspbian", "hostcore.osfamily": "unix", "hostcore.version": "v0.0.0-wasmcloud_go", "hostcore.runtime": "wazero"}})
-	event.SetID(uuid.New().String())
-	event.SetSource(hostid) // "N" key
-	event.SetType("com.wasmcloud.lattice.host_heartbeat")
+func (Event) HostHeartbeat(nsprefix, hostid string, startTime time.Time) (string, []byte) {
+	ce := cloudevent{
+		Spec:        "1.0",
+		Id:          uuid.New().String(),
+		Source:      hostid,
+		Type:        "com.wasmcloud.lattice.host_heartbeat",
+		ContentType: "application/json",
+		Data: cedata{
+			Actors:    []string{},
+			Providers: []string{},
+			Friendly:  "yolo-bro-1234",
+			Labels: map[string]string{
+				"hostcore.arch":     "armv61",
+				"hostcore.os":       "raspbian",
+				"hostcore.osfamily": "unix",
+				"hostcore.version":  "v0.0.0-wasmcloud_go",
+				"hostcore.runtime":  "wazero",
+			},
+			Version: "v0.0.0-wasmcloud_go",
+		},
+	}
 
-	return ControlEvent(nsprefix), event
+	ceb, _ := json.Marshal(ce)
+	return ControlEvent(nsprefix), ceb
+}
+
+type cloudevent struct {
+	Spec        string `json:"specversion"`
+	Id          string `json:"id"`
+	Source      string `json:"source"`
+	Type        string `json:"type"`
+	ContentType string `json:"datacontenttype"`
+	Data        cedata `json:"data"`
+}
+
+type cedata struct {
+	Actors    []string          `json:"actors"`
+	Providers []string          `json:"providers"`
+	Friendly  string            `json:"friendly_name"`
+	Labels    map[string]string `json:"labels"`
+	Version   string            `json:"version"`
 }
