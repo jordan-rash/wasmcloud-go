@@ -28,6 +28,68 @@ func (w WasmcloudNats) StartSubscriptions() error {
 	)
 
 	w.nc.Subscribe("wasmbus.ctl.default.cmd."+w.host.HostId+".la", func(m *nats.Msg) {
+		req := struct {
+			ActorRef string `json:"actor_ref"`
+			Count    int    `json:"count"`
+			HostId   string `json:"host_id"`
+		}{}
+
+		json.Unmarshal(m.Data, &req)
+
+		splitOCI := strings.Split(req.ActorRef, ":")
+		aB, _, err := oci.PullOCIRef(w.host.Context, splitOCI[0], splitOCI[1])
+		if err != nil {
+			panic(err)
+		}
+
+		// TODO: wascap stuff here
+
+		actor := iwazero.Actor{
+			Context:    w.host.Context,
+			ActorBytes: aB,
+		}
+
+		err = actor.StartActor()
+		if err != nil {
+			log.Panicln(err)
+		}
+
+		subj, event := broker.Event{}.ActorStarted(broker.WASMCLOUD_DEFAULT_NSPREFIX, w.host.HostId, "")
+		w.nc.Publish(subj, event)
+		w.host.Actors = append(w.host.Actors, "MAVJ6A57BJA2IYXCJC2DJ64XUUPATDC3RBITEW5XNI4C73JFDLVKB2YE")
+
+		w.nc.Subscribe("wasmbus.rpc.default.MBCFOPM6JW2APJLXJD3Z5O4CN7CPYJ2B4FTKLJUR5YR5MITIU7HD3WD5", func(m *nats.Msg) {
+			d := msgpack.NewDecoder(m.Data)
+			i, _ := core.MDecodeInvocation(&d)
+			actor.Data = m.Data
+			actor.Operation = i.Operation
+
+			_, err = actor.GetModule().ExportedFunction("__guest_call").
+				Call(w.host.Context, uint64(len([]byte(actor.Operation))), uint64(len(actor.Data)))
+			if err != nil {
+				log.Panicln(err)
+			}
+
+			aerr, _ := actor.GetModule().Memory().Read(actor.GetGuestError())
+
+			ir := core.InvocationResponse{
+				Msg:           actor.GetGuestResponse(),
+				InvocationId:  i.Id,
+				Error:         string(aerr),
+				ContentLength: uint64(len(actor.GetGuestResponse())),
+			}
+
+			var sizer msgpack.Sizer
+			size_enc := &sizer
+			ir.MEncode(size_enc)
+			buf := make([]byte, sizer.Len())
+			encoder := msgpack.NewEncoder(buf)
+			enc := &encoder
+			ir.MEncode(enc)
+
+			w.nc.Publish(m.Reply, buf)
+		})
+
 		ack := struct {
 			Accepted bool   `json:"accepted"`
 			Error    string `json:"error"`
@@ -82,7 +144,6 @@ func (w WasmcloudNats) StartSubscriptions() error {
 		json.Unmarshal(m.Data, &auction)
 
 		if auction.Constraints["hostcore.version"] == "v0.0.0-wasmcloud_go" {
-
 			auctionResponse := struct {
 				ActorRef    string            `json:"actor_ref"`
 				Constraints map[string]string `json:"constraints"`
@@ -97,56 +158,6 @@ func (w WasmcloudNats) StartSubscriptions() error {
 			w.nc.Publish(m.Reply, aRb)
 
 			// pull actor here
-			splitOCI := strings.Split(auction.ActorRef, ":")
-			aB, _, err := oci.PullOCIRef(w.host.Context, splitOCI[0], splitOCI[1])
-			if err != nil {
-				panic(err)
-			}
-
-			w.nc.Subscribe("wasmbus.rpc.default.MBCFOPM6JW2APJLXJD3Z5O4CN7CPYJ2B4FTKLJUR5YR5MITIU7HD3WD5", func(m *nats.Msg) {
-				d := msgpack.NewDecoder(m.Data)
-				i, _ := core.MDecodeInvocation(&d)
-
-				actor := iwazero.Actor{
-					Context:    w.host.Context,
-					ActorBytes: aB,
-					Data:       m.Data,
-					Operation:  i.Operation,
-				}
-
-				err := actor.StartActor()
-				if err != nil {
-					log.Panicln(err)
-				}
-
-				log.Print(actor.GetModule().String())
-
-				_, err = actor.GetModule().ExportedFunction("__guest_call").
-					Call(w.host.Context, uint64(len([]byte(actor.Operation))), uint64(len(actor.Data)))
-				if err != nil {
-					log.Panicln(err)
-				}
-
-				aerr, _ := actor.GetModule().Memory().Read(actor.GetGuestError())
-
-				ir := core.InvocationResponse{
-					Msg:           actor.GetGuestResponse(),
-					InvocationId:  i.Id,
-					Error:         string(aerr),
-					ContentLength: uint64(len(actor.GetGuestResponse())),
-				}
-
-				var sizer msgpack.Sizer
-				size_enc := &sizer
-				ir.MEncode(size_enc)
-				buf := make([]byte, sizer.Len())
-				encoder := msgpack.NewEncoder(buf)
-				enc := &encoder
-				ir.MEncode(enc)
-
-				w.nc.Publish(m.Reply, buf)
-			})
-
 		}
 	})
 
