@@ -3,12 +3,15 @@ package cli
 import (
 	"context"
 	"time"
+
+	"github.com/go-logr/logr"
 )
 
 var VERSION string = "v0.0.0"
 
 type WasmcloudHost struct {
 	Context context.Context `json:"-" kong:"-"`
+	Verbose int             `json:"-" kong:"name='verbose',type='counter',short='v',default=3,enum='1,2,3,4,5',help='Log level output. 1=panic...5=trace. Default: info'"`
 
 	// Host Settings
 	WasmcloudClusterSeed        string   `json:"-" kong:"name='cluster_seed',group='Host Settings',env=WASMCLOUD_CLUSTER_SEED"`
@@ -57,4 +60,5 @@ type WasmcloudHost struct {
 	Actors    []string          `json:"actors" kong:"-"`
 	Providers []string          `json:"providers" kong:"-"`
 	Uptime    time.Time         `json:"uptime" kong:"-"`
+	Logger    logr.Logger       `json:"-" kong:"-"`
 }

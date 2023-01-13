@@ -111,7 +111,7 @@ func (w WasmcloudNats) startActor(m *nats.Msg) {
 	json.Unmarshal(m.Data, &req)
 
 	splitOCI := strings.Split(req.ActorRef, ":")
-	aB, _, err := oci.PullOCIRef(w.host.Context, splitOCI[0], splitOCI[1])
+	aB, _, err := oci.PullOCIRef(w.host.Context, splitOCI[0], splitOCI[1], w.host.Logger)
 	if err != nil {
 		panic(err)
 	}

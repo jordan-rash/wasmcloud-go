@@ -3,13 +3,13 @@ package oci
 import (
 	"context"
 	"errors"
-	"log"
 
+	"github.com/go-logr/logr"
 	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/registry/remote"
 )
 
-func PullOCIRef(ctx context.Context, targetRef, tag string) ([]byte, []byte, error) {
+func PullOCIRef(ctx context.Context, targetRef, tag string, log logr.Logger) ([]byte, []byte, error) {
 	repo, err := remote.NewRepository(targetRef)
 	if err != nil {
 		panic(err)
@@ -36,12 +36,12 @@ func PullOCIRef(ctx context.Context, targetRef, tag string) ([]byte, []byte, err
 				panic(err)
 			}
 		case "application/vnd.module.wasm.content.layer.v1+wasm":
-			log.Printf("downloading %s:%s", targetRef, tag)
+			log.V(8).Info("downloading %s:%s", targetRef, tag)
 			img, err = content.FetchAll(ctx, repo, l)
 			if err != nil {
 				panic(err)
 			}
-			log.Printf("download complete")
+			log.V(8).Info("download complete")
 		}
 	}
 

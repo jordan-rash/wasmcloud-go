@@ -17,6 +17,8 @@ require (
 )
 
 require (
+	github.com/bombsimon/logrusr/v4 v4.0.0 // indirect
+	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/joho/godotenv v1.4.0 // indirect
 	github.com/klauspost/compress v1.15.14 // indirect
