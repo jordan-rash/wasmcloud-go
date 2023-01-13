@@ -52,6 +52,7 @@ func NewWasmbus(host cli.WasmcloudHost) (*Wasmbus, error) {
 	wb.runtime = r
 	wb.Context = host.Context
 	wb.logger = host.Logger
+
 	return wb, nil
 }
 
@@ -65,7 +66,7 @@ func (wb Wasmbus) GetGuestResponse() []byte {
 func (wb *Wasmbus) CreateModule(actorBytes []byte) (api.Module, error) {
 	var err error
 
-	wb.logger.V(10).Info(fmt.Sprintf("actors bytes: %d", len(actorBytes)))
+	wb.logger.V(6).Info(fmt.Sprintf("actors bytes: %d", len(actorBytes)))
 	mod, err := wb.runtime.InstantiateModuleFromBinary(wb.Context, actorBytes)
 	if err != nil {
 		return nil, err

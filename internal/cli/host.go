@@ -11,13 +11,14 @@ var VERSION string = "v0.0.0"
 
 type WasmcloudHost struct {
 	Context context.Context `json:"-" kong:"-"`
-	Verbose int             `json:"-" kong:"name='verbose',type='counter',short='v',default=3,enum='1,2,3,4,5',help='Log level output. 1=panic...5=trace. Default: info'"`
+	Verbose int             `json:"-" kong:"name='verbose',type='counter',short='v',default=0,enum='0,1,2',help='Log level output. 0=info,1=debug,2=trace. Default: info'"`
 
 	// Host Settings
-	WasmcloudClusterSeed        string   `json:"-" kong:"name='cluster_seed',group='Host Settings',env=WASMCLOUD_CLUSTER_SEED"`
-	WasmcloudClusterIssuers     []string `json:"-" kong:"name='cluster_issuers',group='Host Settings',env=WASMCLOUD_CLUSTER_ISSUERS"`
-	WasmcloudStructuredLogLevel string   `json:"-" kong:"name='structured_log_level',group='Host Settings',env=WASMCLOUD_STRUCTURED_LOG_LEVEL"`
-	WasmcloudLatticePrefix      string   `json:"-" kong:"name='lattice_prefix',group='Host Settings',env=WASMCLOUD_LATTICE_PREFIX,default='default'"`
+	WasmcloudClusterSeed              string   `json:"-" kong:"name='cluster_seed',group='Host Settings',env=WASMCLOUD_CLUSTER_SEED"`
+	WasmcloudClusterIssuers           []string `json:"-" kong:"name='cluster_issuers',group='Host Settings',env=WASMCLOUD_CLUSTER_ISSUERS"`
+	WasmcloudStructuredLoggingEnabled bool     `json:"-" kong:"name='structured_logging_enabled',group='Host Settings',env=WASMCLOUD_STRUCTURED_LOGGING_ENABLED,default=false"`
+	WasmcloudStructuredLogLevel       string   `json:"-" kong:"name='structured_log_level',group='Host Settings',env=WASMCLOUD_STRUCTURED_LOG_LEVEL"`
+	WasmcloudLatticePrefix            string   `json:"-" kong:"name='lattice_prefix',group='Host Settings',env=WASMCLOUD_LATTICE_PREFIX,default='default'"`
 
 	// NATs Configuration
 	WasmcloudNatsRemoteUrl string `json:"-" kong:"name='nats_remote_url',group='NATS Settings',env=WASMCLOUD_NATS_REMOTE_URL,default='127.0.0.1:7422'"`

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 
@@ -14,72 +13,80 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var log logr.Logger
+func configureLogger(v int, structured bool) logr.Logger {
+	logLvls := []logrus.Level{logrus.InfoLevel, logrus.DebugLevel, logrus.TraceLevel}
+	logLvl := func() logrus.Level {
+		if v < 3 {
+			return logLvls[v]
+		} else {
+			return logrus.TraceLevel
+		}
+	}
 
-func init() {
 	logrusLog := logrus.New()
-	log = logrusr.New(logrusLog)
+	logrusLog.SetLevel(logLvl())
+	if !structured {
+		logrusLog.SetFormatter(&logrus.TextFormatter{
+			DisableColors:             true,
+			FullTimestamp:             true,
+			EnvironmentOverrideColors: true,
+		})
+	} else {
+		logrusLog.SetFormatter(&logrus.JSONFormatter{})
+	}
+
+	log := logrusr.New(
+		logrusLog,
+		logrusr.WithReportCaller(),
+	)
+
+	return log
 }
 
 func main() {
-
 	// Read CLI inputs and parse to struct
 	host := cli.WasmcloudHost{Context: context.Background()}
-	host.Parse()
+	host.Parse() // many defaults set with Validate function called here
 
-	logLvl := func() int {
-		if (host.Verbose * 2) <= 10 {
-			return host.Verbose * 2
-		} else {
-			return 10
-		}
-	}
-	switch logLvl() {
-	case 2:
-		log.Info("Log level: panic")
-	case 4:
-		log.Info("Log level: error")
-	case 6:
-		log.Info("Log level: info")
-	case 8:
-		log.Info("Log level: debug")
-	case 10:
-		log.Info("Log level: trace")
-	}
-
-	log.V(logLvl())
-	host.Logger = log
+	host.Logger = configureLogger(host.Verbose, host.WasmcloudStructuredLoggingEnabled)
 
 	// Start wazero
 	wb, err := wasmbus.NewWasmbus(host)
 	if err != nil {
-		panic(err)
+		host.Logger.Error(err, "failed to initialize wazero")
+		os.Exit(1)
 	}
 
 	// Initialize NATs leaf node
 	s, err := inats.InitLeafNode(host)
 	if err != nil {
-		panic(err)
+		host.Logger.Error(err, "failed to initialize nats")
+		os.Exit(1)
 	}
 
 	// Start NATs leaf node
 	err = s.Start()
 	if err != nil {
-		panic(err)
+		host.Logger.Error(err, "failed to start nats leaf node")
+		os.Exit(1)
 	}
 
 	err = s.StartSubscriptions(wb)
 	if err != nil {
-		panic(err)
+		host.Logger.Error(err, "failed to start nats subscriptions")
+		os.Exit(1)
 	}
 
-	log.Info(fmt.Sprintf("host id: %s", host.HostId))
-	log.Info(fmt.Sprintf("cluster issuer: %s", host.Issuer))
-	log.Info(fmt.Sprintf("cluster seed: %s", host.WasmcloudClusterSeed))
+	host.Logger.V(0).Info(
+		"wasmcloud-go host started",
+		"host_id", host.HostId,
+		"cluster_issuer", host.Issuer,
+		"cluster_seed", host.WasmcloudClusterSeed,
+	)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	<-c
 	s.Close()
-	os.Exit(1)
+	os.Exit(0)
 }

@@ -4,6 +4,9 @@ go 1.17
 
 require (
 	github.com/alecthomas/kong v0.7.1
+	github.com/bombsimon/logrusr/v4 v4.0.0
+	github.com/davecgh/go-spew v1.1.1
+	github.com/go-logr/logr v1.2.3
 	github.com/gobuffalo/envy v1.10.2
 	github.com/google/uuid v1.3.0
 	github.com/jordan-rash/nkeys v0.0.0-20220823153436-8d5eab9d8423
@@ -17,8 +20,6 @@ require (
 )
 
 require (
-	github.com/bombsimon/logrusr/v4 v4.0.0 // indirect
-	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/joho/godotenv v1.4.0 // indirect
 	github.com/klauspost/compress v1.15.14 // indirect
@@ -29,7 +30,6 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0-rc2 // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
-	github.com/stretchr/testify v1.8.1 // indirect
 	github.com/wasmcloud/tinygo-cbor v0.1.0 // indirect
 	golang.org/x/crypto v0.5.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect

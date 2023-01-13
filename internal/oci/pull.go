@@ -3,6 +3,7 @@ package oci
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/go-logr/logr"
 	"oras.land/oras-go/v2/content"
@@ -36,12 +37,12 @@ func PullOCIRef(ctx context.Context, targetRef, tag string, log logr.Logger) ([]
 				panic(err)
 			}
 		case "application/vnd.module.wasm.content.layer.v1+wasm":
-			log.V(8).Info("downloading %s:%s", targetRef, tag)
+			log.V(1).Info(fmt.Sprintf("downloading %s:%s", targetRef, tag))
 			img, err = content.FetchAll(ctx, repo, l)
 			if err != nil {
 				panic(err)
 			}
-			log.V(8).Info("download complete")
+			log.V(1).Info("download complete")
 		}
 	}
 
