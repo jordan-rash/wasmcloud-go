@@ -9,7 +9,6 @@ require (
 	github.com/jordan-rash/nkeys v0.0.0-20220823153436-8d5eab9d8423
 	github.com/nats-io/nats-server/v2 v2.9.11
 	github.com/nats-io/nats.go v1.22.1
-	github.com/nats-io/nkeys v0.3.0
 	github.com/sirupsen/logrus v1.9.0
 	github.com/tetratelabs/wazero v1.0.0-pre.7.0.20230109043102-8f0967e0e813
 	github.com/wasmcloud/interfaces/core/tinygo v0.0.0-20221212211611-51d99ad3427c
@@ -23,6 +22,7 @@ require (
 	github.com/klauspost/compress v1.15.14 // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
 	github.com/nats-io/jwt/v2 v2.3.0 // indirect
+	github.com/nats-io/nkeys v0.3.0 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0-rc2 // indirect

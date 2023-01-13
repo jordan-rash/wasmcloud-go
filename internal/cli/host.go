@@ -14,7 +14,7 @@ type WasmcloudHost struct {
 	WasmcloudClusterSeed        string   `json:"-" kong:"name='cluster_seed',group='Host Settings',env=WASMCLOUD_CLUSTER_SEED"`
 	WasmcloudClusterIssuers     []string `json:"-" kong:"name='cluster_issuers',group='Host Settings',env=WASMCLOUD_CLUSTER_ISSUERS"`
 	WasmcloudStructuredLogLevel string   `json:"-" kong:"name='structured_log_level',group='Host Settings',env=WASMCLOUD_STRUCTURED_LOG_LEVEL"`
-	WasmcloudLatticePrefix      string   `json:"-" kong:"name='lattice_prefix',group='Host Settings',env=WASMCLOUD_LATTICE_PREFIX"`
+	WasmcloudLatticePrefix      string   `json:"-" kong:"name='lattice_prefix',group='Host Settings',env=WASMCLOUD_LATTICE_PREFIX,default='default'"`
 
 	// NATs Configuration
 	WasmcloudNatsRemoteUrl string `json:"-" kong:"name='nats_remote_url',group='NATS Settings',env=WASMCLOUD_NATS_REMOTE_URL,default='127.0.0.1:7422'"`

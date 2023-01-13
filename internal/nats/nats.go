@@ -6,6 +6,7 @@ import (
 
 	"github.com/jordan-rash/wasmcloud-go/broker"
 	"github.com/jordan-rash/wasmcloud-go/internal/cli"
+	"github.com/jordan-rash/wasmcloud-go/wasmbus"
 	ns "github.com/nats-io/nats-server/v2/server"
 	nats "github.com/nats-io/nats.go"
 )
@@ -25,16 +26,21 @@ type WasmcloudNats struct {
 	ns   *ns.Server
 	nc   *nats.Conn
 	host cli.WasmcloudHost
+	wb   *wasmbus.Wasmbus
+}
+
+func (w WasmcloudNats) Close() {
+	w.nc.Drain()
+	for w.nc.IsDraining() {
+	}
+	w.ns.Shutdown()
 }
 
 func (w *WasmcloudNats) Start() error {
 	var err error
 
 	go w.ns.Start()
-	for {
-		if w.ns.Running() {
-			break
-		}
+	for !w.ns.Running() {
 		time.Sleep(50 * time.Millisecond)
 	}
 
@@ -45,7 +51,7 @@ func (w *WasmcloudNats) Start() error {
 
 	// Start Host Cloud Event
 	subj, event := broker.Event{}.HostStart(
-		broker.WASMCLOUD_DEFAULT_NSPREFIX,
+		w.host.WasmcloudLatticePrefix,
 		w.host.HostId,
 	)
 
@@ -57,7 +63,7 @@ func (w *WasmcloudNats) Start() error {
 			time.Sleep(30 * time.Second)
 
 			subj, event := broker.Event{}.HostHeartbeat(
-				broker.WASMCLOUD_DEFAULT_NSPREFIX,
+				w.host.WasmcloudLatticePrefix,
 				w.host.HostId,
 				w.host.Uptime,
 			)

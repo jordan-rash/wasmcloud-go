@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
-	"github.com/nats-io/nkeys"
+	"github.com/jordan-rash/nkeys"
 )
 
 func (c *WasmcloudHost) Parse() {
@@ -32,6 +32,7 @@ func (c *WasmcloudHost) Validate() error {
 	if err != nil {
 		return err
 	}
+
 	c.HostId = string(pubClusterSeed)
 	log.Printf("host id: %s", pubClusterSeed)
 

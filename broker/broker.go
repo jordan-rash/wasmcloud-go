@@ -16,14 +16,14 @@ type Event struct{}
 
 func prefix(nsprefix string) string {
 	if nsprefix == "" {
-		nsprefix = "default"
+		nsprefix = WASMCLOUD_DEFAULT_NSPREFIX
 	}
 	return fmt.Sprintf("wasmbus.ctl.%s", nsprefix)
 }
 
 func ControlEvent(nsprefix string) string {
 	if nsprefix == "" {
-		nsprefix = "default"
+		nsprefix = WASMCLOUD_DEFAULT_NSPREFIX
 	}
 	return fmt.Sprintf("wasmbus.evt.%s", nsprefix)
 }
