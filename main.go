@@ -14,11 +14,15 @@ import (
 )
 
 func configureLogger(v int, structured bool) logr.Logger {
-	logLvls := []logrus.Level{logrus.InfoLevel, logrus.DebugLevel, logrus.TraceLevel}
 	logLvl := func() logrus.Level {
-		if v < 3 {
-			return logLvls[v]
-		} else {
+		switch v {
+		case 0:
+			return logrus.ErrorLevel
+		case 1:
+			return logrus.InfoLevel
+		case 2:
+			return logrus.DebugLevel
+		default:
 			return logrus.TraceLevel
 		}
 	}
@@ -45,7 +49,7 @@ func configureLogger(v int, structured bool) logr.Logger {
 
 func main() {
 	// Read CLI inputs and parse to struct
-	host := cli.WasmcloudHost{Context: context.Background()}
+	host := &cli.WasmcloudHost{Context: context.Background()}
 	host.Parse() // many defaults set with Validate function called here
 
 	host.Logger = configureLogger(host.Verbose, host.WasmcloudStructuredLoggingEnabled)

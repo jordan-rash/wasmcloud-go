@@ -5,14 +5,15 @@ go 1.17
 require (
 	github.com/alecthomas/kong v0.7.1
 	github.com/bombsimon/logrusr/v4 v4.0.0
-	github.com/davecgh/go-spew v1.1.1
 	github.com/go-logr/logr v1.2.3
 	github.com/gobuffalo/envy v1.10.2
+	github.com/golang-jwt/jwt/v4 v4.4.3
 	github.com/google/uuid v1.3.0
 	github.com/jordan-rash/nkeys v0.0.0-20220823153436-8d5eab9d8423
 	github.com/nats-io/nats-server/v2 v2.9.11
 	github.com/nats-io/nats.go v1.22.1
 	github.com/sirupsen/logrus v1.9.0
+	github.com/tetratelabs/wabin v0.0.0-20220927005300-3b0fbf39a46a
 	github.com/tetratelabs/wazero v1.0.0-pre.7.0.20230109043102-8f0967e0e813
 	github.com/wasmcloud/interfaces/core/tinygo v0.0.0-20221212211611-51d99ad3427c
 	github.com/wasmcloud/tinygo-msgpack v0.1.4

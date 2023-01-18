@@ -28,7 +28,7 @@ type Wasmbus struct {
 
 // TODO: Namespaces not implemented because it look like team is
 // going a different direction with cache.
-func NewWasmbus(host cli.WasmcloudHost) (*Wasmbus, error) {
+func NewWasmbus(host *cli.WasmcloudHost) (*Wasmbus, error) {
 	wb := new(Wasmbus)
 
 	r := wazero.NewRuntime(host.Context)

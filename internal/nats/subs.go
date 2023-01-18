@@ -1,18 +1,37 @@
 package nats
 
 import (
+	"crypto/ed25519"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v4"
+	"github.com/jordan-rash/nkeys"
 	"github.com/jordan-rash/wasmcloud-go/broker"
 	"github.com/jordan-rash/wasmcloud-go/internal/oci"
+	"github.com/jordan-rash/wasmcloud-go/models"
 	"github.com/jordan-rash/wasmcloud-go/wasmbus"
 	nats "github.com/nats-io/nats.go"
 	core "github.com/wasmcloud/interfaces/core/tinygo"
 	msgpack "github.com/wasmcloud/tinygo-msgpack"
 )
+
+type Claims struct {
+	jwt.StandardClaims
+	ID     string `json:"jti"`
+	Wascap Wascap `json:"wascap"`
+}
+
+type Wascap struct {
+	models.ActorDescription
+
+	TargetURL string `json:"target_url"`
+	OriginURL string `json:"origin_url"`
+}
 
 func (w *WasmcloudNats) StartSubscriptions(wb *wasmbus.Wasmbus) error {
 	var err error
@@ -103,20 +122,68 @@ func (w WasmcloudNats) hostPing(m *nats.Msg) {
 
 func (w WasmcloudNats) startActor(m *nats.Msg) {
 	req := struct {
-		ActorRef string `json:"actor_ref"`
-		Count    int    `json:"count"`
-		HostId   string `json:"host_id"`
+		ActorRef    string            `json:"actor_ref"`
+		Count       int               `json:"count"`
+		HostId      string            `json:"host_id"`
+		Constraints map[string]string `json:"constraints"`
 	}{}
 
 	json.Unmarshal(m.Data, &req)
 
 	splitOCI := strings.Split(req.ActorRef, ":")
-	aB, _, err := oci.PullOCIRef(w.host.Context, splitOCI[0], splitOCI[1], w.host.Logger)
+	aB, metadata, err := oci.PullOCIRef(w.host.Context, splitOCI[0], splitOCI[1], w.host.Logger)
 	if err != nil {
 		panic(err)
 	}
 
-	// TODO: wascap stuff here
+	var claims *Claims
+
+	for _, i := range metadata.CustomSection {
+		if i.Name == "jwt" {
+			var Ed25519SigningMethod jwt.SigningMethodEd25519
+			jwt.RegisterSigningMethod("Ed25519",
+				func() jwt.SigningMethod { return &Ed25519SigningMethod })
+
+			token, err := jwt.ParseWithClaims(
+				string(i.Data),
+				&Claims{},
+				func(token *jwt.Token) (interface{}, error) {
+					if _, ok := token.Method.(*jwt.SigningMethodEd25519); !ok {
+						err := errors.New("invalid signing method")
+						w.host.Logger.Error(err, "provided key was not valid ed25519")
+						return nil, err
+					}
+
+					if claims, ok := token.Claims.(*Claims); ok {
+						rKey, err := nkeys.Decode(
+							nkeys.PrefixByteAccount,
+							[]byte(claims.Issuer),
+						)
+						if err != nil {
+							return nil, err
+						}
+
+						var pubKey ed25519.PublicKey = rKey
+						return pubKey, nil
+					}
+					return nil, err
+				})
+			if err != nil {
+				w.host.Logger.Error(err, "failed to validate jwt")
+				return
+			}
+
+			var ok bool
+			if claims, ok = token.Claims.(*Claims); !ok || !token.Valid {
+				fmt.Println(err)
+			}
+		}
+	}
+
+	// TODO: need to compare wasm module hash, WITHOUT embedded signature, to
+	// token.Claims.(*Claims).Wascap.Hash
+	// sum := sha256.Sum256(aB)
+	// fmt.Printf("SHA256: %x", sum)
 
 	mod, err := w.wb.CreateModule(aB)
 	if err != nil {
@@ -125,9 +192,23 @@ func (w WasmcloudNats) startActor(m *nats.Msg) {
 
 	subj, event := broker.Event{}.ActorStarted(broker.WASMCLOUD_DEFAULT_NSPREFIX, w.host.HostId, "")
 	w.nc.Publish(subj, event)
-	w.host.Actors = append(w.host.Actors, "MAVJ6A57BJA2IYXCJC2DJ64XUUPATDC3RBITEW5XNI4C73JFDLVKB2YE")
 
-	w.nc.Subscribe("wasmbus.rpc.default.MBCFOPM6JW2APJLXJD3Z5O4CN7CPYJ2B4FTKLJUR5YR5MITIU7HD3WD5", func(m *nats.Msg) {
+	ai := models.ActorInstance{
+		Annotations: req.Constraints,
+		InstanceID:  claims.ID,
+		Revision:    0,
+	}
+
+	a := models.ActorDescription{
+		Name:      claims.Wascap.Name,
+		Id:        claims.Subject,
+		ImageRef:  req.ActorRef,
+		Instances: models.ActorInstances{ai},
+	}
+
+	w.host.AddActor(a)
+
+	w.nc.Subscribe("wasmbus.rpc.default."+claims.Subject, func(m *nats.Msg) {
 		d := msgpack.NewDecoder(m.Data)
 		i, _ := core.MDecodeInvocation(&d)
 		w.wb.Data = m.Data
@@ -168,5 +249,4 @@ func (w WasmcloudNats) startActor(m *nats.Msg) {
 
 	sAck, _ := json.Marshal(ack)
 	w.nc.Publish(m.Reply, sAck)
-
 }

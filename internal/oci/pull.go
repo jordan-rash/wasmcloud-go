@@ -6,11 +6,18 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	"github.com/tetratelabs/wabin/binary"
+	"github.com/tetratelabs/wabin/wasm"
 	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/registry/remote"
 )
 
-func PullOCIRef(ctx context.Context, targetRef, tag string, log logr.Logger) ([]byte, []byte, error) {
+type Metadata struct {
+	ConfigLayer   []byte
+	CustomSection []*wasm.CustomSection
+}
+
+func PullOCIRef(ctx context.Context, targetRef, tag string, log logr.Logger) ([]byte, *Metadata, error) {
 	repo, err := remote.NewRepository(targetRef)
 	if err != nil {
 		panic(err)
@@ -27,12 +34,12 @@ func PullOCIRef(ctx context.Context, targetRef, tag string, log logr.Logger) ([]
 	}
 
 	var img []byte
-	var metadata []byte
+	md := new(Metadata)
 
 	for _, l := range layers {
 		switch l.MediaType {
 		case "application/vnd.wasmcloud.actor.archive.config":
-			metadata, err = content.FetchAll(ctx, repo, l)
+			md.ConfigLayer, err = content.FetchAll(ctx, repo, l)
 			if err != nil {
 				panic(err)
 			}
@@ -46,8 +53,11 @@ func PullOCIRef(ctx context.Context, targetRef, tag string, log logr.Logger) ([]
 		}
 	}
 
-	if img != nil {
-		return img, metadata, nil
+	if mod, err := binary.DecodeModule(img, wasm.CoreFeaturesV2); err != nil {
+		log.Error(err, "failed to decode wasm module")
+	} else {
+		md.CustomSection = mod.CustomSections
+		return img, md, nil
 	}
 
 	return nil, nil, errors.New("did not find artifact")

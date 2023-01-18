@@ -25,7 +25,7 @@ var (
 type WasmcloudNats struct {
 	ns   *ns.Server
 	nc   *nats.Conn
-	host cli.WasmcloudHost
+	host *cli.WasmcloudHost
 	wb   *wasmbus.Wasmbus
 }
 
@@ -74,7 +74,7 @@ func (w *WasmcloudNats) Start() error {
 	return nil
 }
 
-func InitLeafNode(host cli.WasmcloudHost) (WasmcloudNats, error) {
+func InitLeafNode(host *cli.WasmcloudHost) (WasmcloudNats, error) {
 	opt := ns.Options{
 		JetStream:       true,
 		Port:            NATS_LEAF_PORT, // port 0 forces the server to use pipes instead of network

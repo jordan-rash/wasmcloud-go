@@ -5,13 +5,14 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/jordan-rash/wasmcloud-go/models"
 )
 
 var VERSION string = "v0.0.0"
 
 type WasmcloudHost struct {
 	Context context.Context `json:"-" kong:"-"`
-	Verbose int             `json:"-" kong:"name='verbose',type='counter',short='v',default=0,enum='0,1,2',help='Log level output. 0=info,1=debug,2=trace. Default: info'"`
+	Verbose int             `json:"-" kong:"name='verbose',type='counter',short='v',default=0,enum='0,1,2,3',help='Log level output. 0=error,1=info,2=debug,3=trace. Default: error'"`
 
 	// Host Settings
 	WasmcloudClusterSeed              string   `json:"-" kong:"name='cluster_seed',group='Host Settings',env=WASMCLOUD_CLUSTER_SEED"`
@@ -53,13 +54,26 @@ type WasmcloudHost struct {
 	WasmcloudOciRegistryPassword string `json:"-" kong:"name='oci_registry_password',group='OCI Configuration',env=WASMCLOUD_OCI_REGISTRY_PASSWORD"`
 
 	// Non-cli vars
-	HostId    string            `json:"host_id" kong:"-"`
-	Issuer    string            `json:"issuer" kong:"-"`
-	Version   string            `json:"version" kong:"-"`
-	Labels    map[string]string `json:"labels" kong:"-"`
-	Friendly  string            `json:"friendly_name" kong:"-"`
-	Actors    []string          `json:"actors" kong:"-"`
-	Providers []string          `json:"providers" kong:"-"`
-	Uptime    time.Time         `json:"uptime" kong:"-"`
-	Logger    logr.Logger       `json:"-" kong:"-"`
+	HostId    string                   `json:"host_id" kong:"-"`
+	Issuer    string                   `json:"issuer" kong:"-"`
+	Version   string                   `json:"version" kong:"-"`
+	Labels    map[string]string        `json:"labels" kong:"-"`
+	Friendly  string                   `json:"friendly_name" kong:"-"`
+	Actors    models.ActorDescriptions `json:"actors" kong:"-"`
+	Providers []string                 `json:"providers" kong:"-"`
+	Uptime    time.Time                `json:"uptime" kong:"-"`
+	Logger    logr.Logger              `json:"-" kong:"-"`
+}
+
+func (wh *WasmcloudHost) AddActor(a models.ActorDescription) {
+	wh.Actors = append(wh.Actors, a)
+}
+
+func (wh WasmcloudHost) GetInventory() models.HostInventory {
+	ret := models.HostInventory{}
+	ret.HostID = wh.HostId
+	ret.Labels = wh.Labels
+	ret.Actors = wh.Actors
+	ret.Providers = models.ProviderDescriptions{}
+	return ret
 }

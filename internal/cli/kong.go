@@ -8,6 +8,7 @@ import (
 
 	"github.com/alecthomas/kong"
 	"github.com/jordan-rash/nkeys"
+	"github.com/jordan-rash/wasmcloud-go/models"
 )
 
 func (c *WasmcloudHost) Parse() {
@@ -57,7 +58,7 @@ func (c *WasmcloudHost) Validate() error {
 
 	c.Version = VERSION
 	c.Friendly = "yolo-bro-1234"
-	c.Actors = []string{}
+	c.Actors = models.ActorDescriptions{}
 	c.Providers = []string{}
 	c.Uptime = time.Now()
 
