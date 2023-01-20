@@ -31,7 +31,7 @@ type client struct {
 	timeout  time.Duration
 }
 
-func New(nc *nats.Conn, prefix string, timeout time.Duration) client {
+func New_Old(nc *nats.Conn, prefix string, timeout time.Duration) client {
 	return client{
 		nc,
 		prefix,
