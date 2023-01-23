@@ -19,7 +19,7 @@ const (
 )
 
 var (
-	DEFAULT_LEAFNOTE_OPTIONS nats.JSOpt = nats.PublishAsyncMaxPending(256)
+	DEFAULT_LEAFNODE_OPTIONS nats.JSOpt = nats.PublishAsyncMaxPending(256)
 )
 
 func GetKVStore(nc *nats.Conn, latticePrefix, jsDomain string) (nats.KeyValue, error) {
@@ -27,12 +27,12 @@ func GetKVStore(nc *nats.Conn, latticePrefix, jsDomain string) (nats.KeyValue, e
 	var err error
 
 	if jsDomain != "" {
-		js, err = nc.JetStream(nats.Domain(jsDomain), DEFAULT_LEAFNOTE_OPTIONS)
+		js, err = nc.JetStream(nats.Domain(jsDomain), DEFAULT_LEAFNODE_OPTIONS)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		js, err = nc.JetStream(DEFAULT_LEAFNOTE_OPTIONS)
+		js, err = nc.JetStream(DEFAULT_LEAFNODE_OPTIONS)
 		if err != nil {
 			return nil, err
 		}
@@ -64,9 +64,6 @@ func GetClaims(store nats.KeyValue) (*models.GetClaimsResponse, error) {
 			}
 
 			claims = append(claims, d)
-			if err != nil {
-				return nil, err
-			}
 		}
 	}
 
@@ -94,9 +91,6 @@ func GetLinks(store nats.KeyValue) (*models.LinkDefinitionList, error) {
 			}
 
 			links = append(links, d)
-			if err != nil {
-				return nil, err
-			}
 		}
 	}
 
