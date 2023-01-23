@@ -18,17 +18,21 @@ const (
 	BUCKET_PREFIX  = "LATTICEDATA_"
 )
 
+var (
+	DEFAULT_LEAFNOTE_OPTIONS []nats.JSOpt = []nats.JSOpt{nats.PublishAsyncMaxPending(256)}
+)
+
 func GetKVStore(nc *nats.Conn, latticePrefix, jsDomain string) (nats.KeyValue, error) {
 	var js nats.JetStreamContext
 	var err error
 
 	if jsDomain != "" {
-		js, err = nc.JetStream(nats.PublishAsyncMaxPending(256), nats.Domain(jsDomain))
+		js, err = nc.JetStream(DEFAULT_LEAFNOTE_OPTIONS, nats.Domain(jsDomain))
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		js, err = nc.JetStream(nats.PublishAsyncMaxPending(256))
+		js, err = nc.JetStream(DEFAULT_LEAFNOTE_OPTIONS)
 		if err != nil {
 			return nil, err
 		}
@@ -105,12 +109,12 @@ func PutLink(store nats.KeyValue, ld core.LinkDefinition) error {
 		return err
 	}
 	key := fmt.Sprintf("%s%s", LINKDEF_PREFIX, id)
-	ldb, err := json.Marshal(ld)
+	ldBytes, err := json.Marshal(ld)
 	if err != nil {
 		return err
 	}
 
-	_, err = store.Put(key, ldb)
+	_, err = store.Put(key, ldBytes)
 	return err
 }
 

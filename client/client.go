@@ -31,6 +31,7 @@ type client struct {
 	timeout  time.Duration
 }
 
+// Deprecated: Use `client.New() ClientBuilder` instead.
 func New_Old(nc *nats.Conn, prefix string, timeout time.Duration) client {
 	return client{
 		nc,

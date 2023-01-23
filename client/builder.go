@@ -7,6 +7,14 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+const (
+	DEFAULT_NS_PREFIX       string        = "default"
+	DEFAULT_TOPIC_PREFIX    string        = ""
+	DEFAULT_JS_DOMAIN       string        = ""
+	DEFAULT_TIMEOUT         time.Duration = time.Second * 2
+	DEFAULT_AUCTION_TIMEOUT time.Duration = time.Second * 5
+)
+
 type Client struct {
 	nc             *nats.Conn
 	topicPrefix    string
@@ -26,14 +34,14 @@ type ClientBuilder struct {
 	jsDomain       string
 }
 
-func New(nc *nats.Conn, options ...ClientBuilderOptions) *ClientBuilder {
+func New(nc *nats.Conn, options ...ClientBuilderOption) *ClientBuilder {
 	cb := &ClientBuilder{
 		nc:             nc,
-		topicPrefix:    "",
-		nsPrefix:       "default",
-		timeout:        time.Second * 2,
-		auctionTimeout: time.Second * 5,
-		jsDomain:       "",
+		topicPrefix:    DEFAULT_TOPIC_PREFIX,
+		nsPrefix:       DEFAULT_NS_PREFIX,
+		timeout:        DEFAULT_TIMEOUT,
+		auctionTimeout: DEFAULT_AUCTION_TIMEOUT,
+		jsDomain:       DEFAULT_JS_DOMAIN,
 	}
 	for _, opt := range options {
 		opt(cb)
@@ -41,33 +49,33 @@ func New(nc *nats.Conn, options ...ClientBuilderOptions) *ClientBuilder {
 	return cb
 }
 
-type ClientBuilderOptions func(*ClientBuilder)
+type ClientBuilderOption func(*ClientBuilder)
 
-func WithTopicPrefix(inTopic string) ClientBuilderOptions {
+func WithTopicPrefix(inTopic string) ClientBuilderOption {
 	return func(bc *ClientBuilder) {
 		bc.topicPrefix = inTopic
 	}
 }
 
-func WithNSPrefix(inPrefix string) ClientBuilderOptions {
+func WithNSPrefix(inPrefix string) ClientBuilderOption {
 	return func(bc *ClientBuilder) {
 		bc.nsPrefix = inPrefix
 	}
 }
 
-func WithTimeout(inTimeout time.Duration) ClientBuilderOptions {
+func WithTimeout(inTimeout time.Duration) ClientBuilderOption {
 	return func(bc *ClientBuilder) {
 		bc.timeout = inTimeout
 	}
 }
 
-func WithAuctionTimeout(inTimeout time.Duration) ClientBuilderOptions {
+func WithAuctionTimeout(inTimeout time.Duration) ClientBuilderOption {
 	return func(bc *ClientBuilder) {
 		bc.auctionTimeout = inTimeout
 	}
 }
 
-func WithJsDomain(inJsDomain string) ClientBuilderOptions {
+func WithJsDomain(inJsDomain string) ClientBuilderOption {
 	return func(bc *ClientBuilder) {
 		bc.jsDomain = inJsDomain
 	}
