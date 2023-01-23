@@ -25,26 +25,31 @@ func init() {
 	}
 }
 
-type client struct {
-	nc       *nats.Conn
-	nsprefix string
-	timeout  time.Duration
+// Lattice control interface client
+type Client struct {
+	nc             *nats.Conn
+	topicPrefix    string
+	nsPrefix       string
+	timeout        time.Duration
+	auctionTimeout time.Duration
+	jsDomain       string
+	kvstore        nats.KeyValue
 }
 
 // Deprecated: Use `client.New() ClientBuilder` instead.
-func New_Old(nc *nats.Conn, prefix string, timeout time.Duration) client {
-	return client{
-		nc,
-		prefix,
-		timeout,
+func New_Old(nc *nats.Conn, prefix string, timeout time.Duration) Client {
+	return Client{
+		nc:          nc,
+		topicPrefix: prefix,
+		timeout:     timeout,
 	}
 }
 
 // NATs topic: ping.hosts
-func (c client) GetHosts(timeout time.Duration) []host {
+func (c Client) GetHosts(timeout time.Duration) []host {
 	var hosts []host
 
-	subject := broker.Queries{}.Hosts(c.nsprefix)
+	subject := broker.Queries{}.Hosts(c.nsPrefix)
 	log.Debug(subject)
 	hostsRaw := c.printResults(c.nc, subject, nil, &timeout)
 	for _, h := range hostsRaw {
@@ -57,8 +62,8 @@ func (c client) GetHosts(timeout time.Duration) []host {
 }
 
 // NATs topic: get.{host}.inv
-func (c client) GetHostInventory(hostId string) hostStatus {
-	subject := broker.Queries{}.HostInventory(c.nsprefix, hostId)
+func (c Client) GetHostInventory(hostId string) hostStatus {
+	subject := broker.Queries{}.HostInventory(c.nsPrefix, hostId)
 	log.Debug(subject)
 
 	hoststatus := c.printResults(c.nc, subject, nil, nil)
@@ -74,8 +79,8 @@ func (c client) GetHostInventory(hostId string) hostStatus {
 }
 
 // NATs topic: get.claims
-func (c client) GetClaims() claims {
-	subject := broker.Queries{}.Claims(c.nsprefix)
+func (c Client) GetClaims() claims {
+	subject := broker.Queries{}.Claims(c.nsPrefix)
 	log.Debug(subject)
 
 	claims := claims{}
@@ -86,8 +91,8 @@ func (c client) GetClaims() claims {
 }
 
 // NATs topic: auction.actor
-func (c client) PerformActorAuction(actorRef string, constraints map[string]string, timeout time.Duration) []string {
-	subject := broker.ActorAuctionSubject(c.nsprefix)
+func (c Client) PerformActorAuction(actorRef string, constraints map[string]string, timeout time.Duration) []string {
+	subject := broker.ActorAuctionSubject(c.nsPrefix)
 	log.Debug(subject)
 	data := struct {
 		ActorRef    string            `json:"actor_ref"`
@@ -104,8 +109,8 @@ func (c client) PerformActorAuction(actorRef string, constraints map[string]stri
 }
 
 // NATs topic: auction.provider
-func (c client) PerformProviderAuction(providerRef string, linkName string, constraints map[string]string, timeout time.Duration) []string {
-	subject := broker.ProviderAuctionSubject(c.nsprefix)
+func (c Client) PerformProviderAuction(providerRef string, linkName string, constraints map[string]string, timeout time.Duration) []string {
+	subject := broker.ProviderAuctionSubject(c.nsPrefix)
 	log.Debug(subject)
 	data := struct {
 		ProviderRef string            `json:"provider_ref"`
@@ -124,8 +129,8 @@ func (c client) PerformProviderAuction(providerRef string, linkName string, cons
 }
 
 // NATs topic: cmd.{host}.la
-func (c client) StartActor(hostID string, actorRef string, count int, annotations map[string]string) []string {
-	subject := broker.Commands{}.StartActor(c.nsprefix, hostID)
+func (c Client) StartActor(hostID string, actorRef string, count int, annotations map[string]string) []string {
+	subject := broker.Commands{}.StartActor(c.nsPrefix, hostID)
 	log.Debug(subject)
 	data := struct {
 		ActorRef    string            `json:"actor_ref"`
@@ -148,8 +153,8 @@ func (c client) StartActor(hostID string, actorRef string, count int, annotation
 }
 
 // NATs topic: cmd.{host}.lp
-func (c client) StartProvider(hostID string, providerRef string, linkName string, annotations map[string]string, providerConfiguration string) []string {
-	subject := broker.Commands{}.StartProvider(c.nsprefix, hostID)
+func (c Client) StartProvider(hostID string, providerRef string, linkName string, annotations map[string]string, providerConfiguration string) []string {
+	subject := broker.Commands{}.StartProvider(c.nsPrefix, hostID)
 	log.Debug(subject)
 	data := struct {
 		ProviderRef   string            `json:"provider_ref"`
@@ -174,8 +179,8 @@ func (c client) StartProvider(hostID string, providerRef string, linkName string
 }
 
 // NATs topic: linkdefs.put
-func (c client) AdvertiseLink(actorID string, providerID string, contractID string, linkName string, values map[string]string) []string {
-	subject := broker.AdvertiseLink(c.nsprefix)
+func (c Client) AdvertiseLink(actorID string, providerID string, contractID string, linkName string, values map[string]string) []string {
+	subject := broker.AdvertiseLink(c.nsPrefix)
 	log.Debug(subject)
 	data := struct {
 		ActorID    string            `json:"actor_id"`
@@ -201,8 +206,8 @@ func (c client) AdvertiseLink(actorID string, providerID string, contractID stri
 }
 
 // NATs topic: linkdefs.del
-func (c client) RemoveLink(actorID string, contractID string, linkName string) []string {
-	subject := broker.RemoveLink(c.nsprefix)
+func (c Client) RemoveLink(actorID string, contractID string, linkName string) []string {
+	subject := broker.RemoveLink(c.nsPrefix)
 	log.Debug(subject)
 	data := struct {
 		ActorID    string `json:"actor_id"`
@@ -222,15 +227,15 @@ func (c client) RemoveLink(actorID string, contractID string, linkName string) [
 }
 
 // NATs topic: get.links
-func (c client) QueryLinks() []string {
-	subject := broker.Queries{}.LinkDefinitions(c.nsprefix)
+func (c Client) QueryLinks() []string {
+	subject := broker.Queries{}.LinkDefinitions(c.nsPrefix)
 	log.Debug(subject)
 	return c.printResults(c.nc, subject, nil, nil)
 }
 
 // NATs topic: cmd.{host}.upd
-func (c client) UpdateActor(hostID string, existingActorID string, newActorRef string, annotations map[string]string) []string {
-	subject := broker.Commands{}.UpdateActor(c.nsprefix, hostID)
+func (c Client) UpdateActor(hostID string, existingActorID string, newActorRef string, annotations map[string]string) []string {
+	subject := broker.Commands{}.UpdateActor(c.nsPrefix, hostID)
 	log.Debug(subject)
 	data := struct {
 		HostID          string            `json:"host_id"`
@@ -252,8 +257,8 @@ func (c client) UpdateActor(hostID string, existingActorID string, newActorRef s
 }
 
 // NATs topic: cmd.{host}.sa
-func (c client) StopActor(hostID string, actorRef string, count int, annotations map[string]string) []string {
-	subject := broker.Commands{}.StopActor(c.nsprefix, hostID)
+func (c Client) StopActor(hostID string, actorRef string, count int, annotations map[string]string) []string {
+	subject := broker.Commands{}.StopActor(c.nsPrefix, hostID)
 	log.Debug(subject)
 	data := struct {
 		HostID      string            `json:"host_id"`
@@ -275,8 +280,8 @@ func (c client) StopActor(hostID string, actorRef string, count int, annotations
 }
 
 // NATs topic: cmd.{host}.sp
-func (c client) StopProvider(hostID string, providerRef string, linkName string, contractID string, annotations map[string]string) []string {
-	subject := broker.Commands{}.StopProvider(c.nsprefix, hostID)
+func (c Client) StopProvider(hostID string, providerRef string, linkName string, contractID string, annotations map[string]string) []string {
+	subject := broker.Commands{}.StopProvider(c.nsPrefix, hostID)
 	log.Debug(subject)
 	data := struct {
 		HostID      string            `json:"host_id"`
@@ -300,8 +305,8 @@ func (c client) StopProvider(hostID string, providerRef string, linkName string,
 }
 
 // NATs topic: cmd.{host}.stop
-func (c client) StopHost(hostID string, timeout time.Duration) []string {
-	subject := broker.Commands{}.StopHost(c.nsprefix, hostID)
+func (c Client) StopHost(hostID string, timeout time.Duration) []string {
+	subject := broker.Commands{}.StopHost(c.nsPrefix, hostID)
 	log.Debug(subject)
 
 	data := struct {
@@ -318,7 +323,7 @@ func (c client) StopHost(hostID string, timeout time.Duration) []string {
 	return c.printResults(c.nc, subject, &b_data, &timeout)
 }
 
-func (c client) printResults(nc *nats.Conn, subject string, data *[]byte, timeoutOverride *time.Duration) []string {
+func (c Client) printResults(nc *nats.Conn, subject string, data *[]byte, timeoutOverride *time.Duration) []string {
 	timeout := c.timeout
 	if timeoutOverride != nil {
 		timeout = *timeoutOverride

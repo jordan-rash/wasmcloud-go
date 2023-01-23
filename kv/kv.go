@@ -19,7 +19,7 @@ const (
 )
 
 var (
-	DEFAULT_LEAFNOTE_OPTIONS []nats.JSOpt = []nats.JSOpt{nats.PublishAsyncMaxPending(256)}
+	DEFAULT_LEAFNOTE_OPTIONS nats.JSOpt = nats.PublishAsyncMaxPending(256)
 )
 
 func GetKVStore(nc *nats.Conn, latticePrefix, jsDomain string) (nats.KeyValue, error) {
@@ -27,7 +27,7 @@ func GetKVStore(nc *nats.Conn, latticePrefix, jsDomain string) (nats.KeyValue, e
 	var err error
 
 	if jsDomain != "" {
-		js, err = nc.JetStream(DEFAULT_LEAFNOTE_OPTIONS, nats.Domain(jsDomain))
+		js, err = nc.JetStream(nats.Domain(jsDomain), DEFAULT_LEAFNOTE_OPTIONS)
 		if err != nil {
 			return nil, err
 		}
@@ -132,6 +132,9 @@ func LDHash(ld *core.LinkDefinition) (string, error) {
 	return LDHashRaw(ld.ActorId, ld.ContractId, ld.LinkName)
 }
 
+// Performs a hash function against the link definition key fields. The corresponding
+// Elixir hash function can be found in https://github.com/wasmcloud/wasmcloud-otp/ in the
+// host_core/lib/linkdefs/manager.ex file, which uses Erlang's :crypto
 func LDHashRaw(actorId, contractId, linkName string) (string, error) {
 	var buf bytes.Buffer
 	_, err := buf.WriteString(actorId)
