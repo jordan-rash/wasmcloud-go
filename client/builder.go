@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	DEFAULT_NS_PREFIX       string        = "default"
+	DEFAULT_LATTICE_PREFIX  string        = "default"
 	DEFAULT_TOPIC_PREFIX    string        = ""
 	DEFAULT_JS_DOMAIN       string        = ""
 	DEFAULT_TIMEOUT         time.Duration = time.Second * 2
@@ -37,7 +37,7 @@ func New(nc *nats.Conn, options ...ClientBuilderOption) *ClientBuilder {
 	cb := &ClientBuilder{
 		nc:             nc,
 		topicPrefix:    DEFAULT_TOPIC_PREFIX,
-		nsPrefix:       DEFAULT_NS_PREFIX,
+		nsPrefix:       DEFAULT_LATTICE_PREFIX,
 		timeout:        DEFAULT_TIMEOUT,
 		auctionTimeout: DEFAULT_AUCTION_TIMEOUT,
 		jsDomain:       DEFAULT_JS_DOMAIN,
@@ -64,7 +64,7 @@ func WithNSPrefix(inPrefix string) ClientBuilderOption {
 	}
 }
 
-// Sets the timeout for standard calls and RPC invocations used by the client. If not set, the default will be 2 seconds
+// Sets the timeout for standard calls and control interface requests used by the client. If not set, the default will be 2 seconds
 func WithTimeout(inTimeout time.Duration) ClientBuilderOption {
 	return func(bc *ClientBuilder) {
 		bc.timeout = inTimeout
