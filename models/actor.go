@@ -19,7 +19,7 @@ type ActorDescription struct {
 
 type ActorInstance struct {
 	Annotations AnnotationMap `json:"annotations,omitempty"`
-	InstanceId  string        `json:"intstance_id"`
+	InstanceId  string        `json:"instance_id"`
 	Revision    uint32        `json:"revision"`
 }
 

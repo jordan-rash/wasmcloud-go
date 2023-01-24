@@ -112,23 +112,23 @@ func (c Client) GetClaims() (*models.Claims, error) {
 			}
 		}
 		return &ret, nil
-	}
+	} else {
+		subject := broker.Queries{}.Claims(c.nsPrefix)
 
-	subject := broker.Queries{}.Claims(c.nsPrefix)
+		claims := models.Claims{}
+		claimsRaw := c.CollectTimeout(subject, nil, nil)
 
-	claims := models.Claims{}
-	claimsRaw := c.CollectTimeout(subject, nil, nil)
-
-	for _, c := range claimsRaw {
-		tClaim := models.Claim{}
-		err := json.Unmarshal([]byte(c), &tClaim)
-		if err != nil {
-			return nil, err
+		for _, c := range claimsRaw {
+			tClaim := models.Claim{}
+			err := json.Unmarshal([]byte(c), &tClaim)
+			if err != nil {
+				return nil, err
+			}
+			claims.Claims = append(claims.Claims, tClaim)
 		}
-		claims.Claims = append(claims.Claims, tClaim)
-	}
 
-	return &claims, nil
+		return &claims, nil
+	}
 }
 
 // NATs topic: auction.actor
@@ -288,30 +288,31 @@ func (c Client) AdvertiseLink(actorID string, providerID string, contractID stri
 			return nil, err
 		}
 		return &models.CtlOperationAck{Accepted: true, Error: ""}, nil
-	}
+	} else {
 
-	subject := broker.AdvertiseLink(c.nsPrefix)
-	log.Debug(subject)
+		subject := broker.AdvertiseLink(c.nsPrefix)
+		log.Debug(subject)
 
-	data_bytes, err := json.Marshal(ld)
-	if err != nil {
-		panic(err)
-	}
-
-	rawAcks := c.CollectTimeout(subject, &data_bytes, nil)
-	for _, a := range rawAcks {
-		cAck := models.CtlOperationAck{}
-		err := json.Unmarshal([]byte(a), &cAck)
+		data_bytes, err := json.Marshal(ld)
 		if err != nil {
-			return nil, err
+			panic(err)
 		}
-		if cAck.Accepted {
-			return &cAck, nil
 
+		rawAcks := c.CollectTimeout(subject, &data_bytes, nil)
+		for _, a := range rawAcks {
+			cAck := models.CtlOperationAck{}
+			err := json.Unmarshal([]byte(a), &cAck)
+			if err != nil {
+				return nil, err
+			}
+			if cAck.Accepted {
+				return &cAck, nil
+
+			}
 		}
+
+		return nil, errors.New("did not receive ack")
 	}
-
-	return nil, errors.New("did not receive ack")
 }
 
 // NATs topic: linkdefs.del
@@ -328,49 +329,50 @@ func (c Client) RemoveLink(actorID string, contractID string, linkName string) (
 			return nil, err
 		}
 		return &models.CtlOperationAck{Accepted: true, Error: ""}, nil
-	}
+	} else {
 
-	subject := broker.RemoveLink(c.nsPrefix)
-	data_bytes, err := json.Marshal(removeLinkReq)
-	if err != nil {
-		panic(err)
-	}
-	rawAcks := c.CollectTimeout(subject, &data_bytes, nil)
-	for _, a := range rawAcks {
-		cAck := models.CtlOperationAck{}
-		err := json.Unmarshal([]byte(a), &cAck)
+		subject := broker.RemoveLink(c.nsPrefix)
+		data_bytes, err := json.Marshal(removeLinkReq)
 		if err != nil {
-			return nil, err
+			panic(err)
 		}
-		if cAck.Accepted {
-			return &cAck, nil
+		rawAcks := c.CollectTimeout(subject, &data_bytes, nil)
+		for _, a := range rawAcks {
+			cAck := models.CtlOperationAck{}
+			err := json.Unmarshal([]byte(a), &cAck)
+			if err != nil {
+				return nil, err
+			}
+			if cAck.Accepted {
+				return &cAck, nil
+			}
 		}
+		return nil, errors.New("did not receive ack")
 	}
-
-	return nil, errors.New("did not receive ack")
 }
 
 // NATs topic: get.links
 func (c Client) QueryLinks() (*models.LinkDefinitionList, error) {
 	if c.kvstore != nil {
 		return kv.GetLinks(c.kvstore)
-	}
+	} else {
 
-	subject := broker.Queries{}.LinkDefinitions(c.nsPrefix)
-	rawLinks := c.CollectTimeout(subject, nil, nil)
+		subject := broker.Queries{}.LinkDefinitions(c.nsPrefix)
+		rawLinks := c.CollectTimeout(subject, nil, nil)
 
-	ld := models.LinkDefinitionList{}
-	for _, r := range rawLinks {
-		tLink := core.LinkDefinition{}
-		err := json.Unmarshal([]byte(r), &tLink)
-		if err != nil {
-			return nil, err
+		ld := models.LinkDefinitionList{}
+		for _, r := range rawLinks {
+			tLink := core.LinkDefinition{}
+			err := json.Unmarshal([]byte(r), &tLink)
+			if err != nil {
+				return nil, err
+			}
+
+			ld.Links = append(ld.Links, tLink)
 		}
 
-		ld.Links = append(ld.Links, tLink)
+		return &ld, nil
 	}
-
-	return &ld, nil
 }
 
 // NATs topic: cmd.{host}.upd
