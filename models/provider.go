@@ -1,6 +1,6 @@
 package models
 
-type ProviderAcutionAck struct {
+type ProviderAuctionAck struct {
 	HostId      string `json:"host_id"`
 	LinkName    string `json:"link_name"`
 	ProviderRef string `json:"provider_ref"`

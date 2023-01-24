@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/jordan-rash/wasmcloud-go/kv"
+	"github.com/jordan-rash/wasmcloud-go/models"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	core "github.com/wasmcloud/interfaces/core/tinygo"
@@ -15,6 +17,28 @@ const (
 	LINK_1   = "{\"actor_id\":\"MBW3UGAIONCX3RIDDUGDCQIRGBQQOWS643CVICQ5EZ7SWNQPZLZTSQKU\",\"contract_id\":\"wasmcloud:httpserver\",\"id\":\"fb30deff-bbe7-4a28-a525-e53ebd4e8228\",\"link_name\":\"default\",\"provider_id\":\"VAG3QITQQ2ODAOWB5TTQSDJ53XK3SHBEIFNK4AYJ5RKAX2UNSCAPHA5M\",\"values\":{\"PORT\":\"8082\"}}"
 	LINK_2   = "{\"actor_id\":\"MBW3UGAIONCX3RIDDUGDCQIRGBQQOWS643CVICQ5EZ7SWNQPZLZTSQKU\",\"contract_id\":\"wasmcloud:keyvalue\",\"id\":\"ff140106-dd0d-44ee-8241-a2158a528b1d\",\"link_name\":\"default\",\"provider_id\":\"VAZVC4RX54J2NVCMCW7BPCAHGGG5XZXDBXFUMDUXGESTMQEJLC3YVZWB\",\"values\":{\"URL\":\"redis://127.0.0.1:6379\"}}"
 )
+
+var client *nats.Conn
+
+func init() {
+	opt := server.Options{
+		JetStream:       true,
+		Port:            4224,
+		Host:            "127.0.0.1",
+		JetStreamDomain: "testy",
+	}
+	n, err := server.NewServer(&opt)
+	if err != nil {
+		panic(err)
+	}
+
+	n.Start()
+
+	client, err = nats.Connect("127.0.0.1:4224")
+	if err != nil {
+		panic(err)
+	}
+}
 
 func TestHashCompatibility(t *testing.T) {
 	const ELIXIR_HASH = "B40411AD09B70A2C83D59923584F66BA2C5A3C274DC4F19416DA49CCD6531F9C"
@@ -31,9 +55,6 @@ func TestHashCompatibility(t *testing.T) {
 }
 
 func TestGetReturnsNonForNonexistentStore(t *testing.T) {
-	client, err := nats.Connect(nats.DefaultURL)
-	assert.NoError(t, err)
-
 	store, err := kv.GetKVStore(client, "this-lattice-shall-never-existeth", "")
 
 	assert.Nil(t, store)
@@ -43,9 +64,6 @@ func TestGetReturnsNonForNonexistentStore(t *testing.T) {
 }
 
 func TestGetClaimsReturnsResponse(t *testing.T) {
-	client, err := nats.Connect(nats.DefaultURL)
-	assert.NoError(t, err)
-
 	js, err := client.JetStream(nats.PublishAsyncMaxPending(256))
 	assert.NoError(t, err)
 
@@ -76,9 +94,6 @@ func TestGetClaimsReturnsResponse(t *testing.T) {
 }
 
 func TestGetLinksReturnsResponse(t *testing.T) {
-	client, err := nats.Connect(nats.DefaultURL)
-	assert.NoError(t, err)
-
 	js, err := client.JetStream(nats.PublishAsyncMaxPending(256))
 	assert.NoError(t, err)
 
@@ -105,9 +120,6 @@ func TestGetLinksReturnsResponse(t *testing.T) {
 }
 
 func TestPutAndDeleteLink(t *testing.T) {
-	client, err := nats.Connect(nats.DefaultURL)
-	assert.NoError(t, err)
-
 	js, err := client.JetStream(nats.PublishAsyncMaxPending(256))
 	assert.NoError(t, err)
 
@@ -134,7 +146,7 @@ func TestPutAndDeleteLink(t *testing.T) {
 	err = kv.PutLink(k, ld2)
 	assert.NoError(t, err)
 
-	err = kv.DeleteLink(k, "Mbob", "wasmcloud:testy", "default")
+	err = kv.DeleteLink(k, models.RemoveLinkDefinationRequest{"Mbob", "wasmcloud:testy", "default"})
 	assert.NoError(t, err)
 
 	links, err := kv.GetLinks(k)

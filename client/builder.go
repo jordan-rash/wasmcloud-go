@@ -6,6 +6,7 @@
 package client
 
 import (
+	"log"
 	"time"
 
 	"github.com/jordan-rash/wasmcloud-go/kv"
@@ -90,7 +91,7 @@ func WithJsDomain(inJsDomain string) ClientBuilderOption {
 func (cb ClientBuilder) Build() (*Client, error) {
 	kvs, err := kv.GetKVStore(cb.nc, cb.nsPrefix, cb.jsDomain)
 	if err != nil {
-		return nil, err
+		log.Print("kvstore not initalized, using legacy lattice communications")
 	}
 
 	c := Client{

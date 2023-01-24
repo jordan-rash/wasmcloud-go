@@ -112,8 +112,8 @@ func PutLink(store nats.KeyValue, ld core.LinkDefinition) error {
 	return err
 }
 
-func DeleteLink(store nats.KeyValue, actorId, contractId, linkName string) error {
-	rawHash, err := LDHashRaw(actorId, contractId, linkName)
+func DeleteLink(store nats.KeyValue, linkRemoveRequest models.RemoveLinkDefinationRequest) error {
+	rawHash, err := LDHashRaw(linkRemoveRequest.ActorId, linkRemoveRequest.ContractId, linkRemoveRequest.LinkName)
 	if err != nil {
 		return err
 	}

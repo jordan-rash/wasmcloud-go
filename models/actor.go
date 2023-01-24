@@ -1,6 +1,6 @@
 package models
 
-type ActorAcutionAck struct {
+type ActorAucutionAck struct {
 	ActorRef string `json:"actor_ref"`
 	HostId   string `json:"host_id"`
 }
