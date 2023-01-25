@@ -146,7 +146,7 @@ func TestPutAndDeleteLink(t *testing.T) {
 	err = kv.PutLink(k, ld2)
 	assert.NoError(t, err)
 
-	err = kv.DeleteLink(k, models.RemoveLinkDefinationRequest{"Mbob", "wasmcloud:testy", "default"})
+	err = kv.DeleteLink(k, models.RemoveLinkDefinationRequest{ActorId: "Mbob", ContractId: "wasmcloud:testy", LinkName: "default"})
 	assert.NoError(t, err)
 
 	links, err := kv.GetLinks(k)
