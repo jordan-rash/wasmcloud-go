@@ -37,14 +37,18 @@ func New_Old(nc *nats.Conn, prefix string, timeout time.Duration) Client {
 
 // NATs topic: ping.hosts
 func (c Client) GetHosts(timeout time.Duration) (*models.Hosts, error) {
-	var hosts models.Hosts
+	hosts := models.Hosts{}
 
 	subject := broker.Queries{}.Hosts(c.nsPrefix)
-	hostsRaw := c.CollectTimeout(subject, nil, &timeout)
+	c.logger.Info("GetHosts subject", "subj", subject)
+	msgs, err := c.CollectTimeout(subject, nil, &timeout)
+	if err != nil {
+		return nil, err
+	}
 
-	for _, h := range hostsRaw {
+	for _, m := range msgs {
 		tHost := models.Host{}
-		err := json.Unmarshal([]byte(h), &tHost)
+		err := json.Unmarshal(m.Data, &tHost)
 		if err != nil {
 			return nil, err
 		}
@@ -57,7 +61,10 @@ func (c Client) GetHosts(timeout time.Duration) (*models.Hosts, error) {
 // NATs topic: get.{host}.inv
 func (c Client) GetHostInventory(hostId string) (*models.HostInventory, error) {
 	subject := broker.Queries{}.HostInventory(c.nsPrefix, hostId)
-	hostInventoryRaw := c.CollectTimeout(subject, nil, nil)
+	hostInventoryRaw, err := c.CollectTimeout(subject, nil, nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(hostInventoryRaw) < 1 {
 		return nil, errors.New("did not find host status")
@@ -65,7 +72,7 @@ func (c Client) GetHostInventory(hostId string) (*models.HostInventory, error) {
 
 	for _, h := range hostInventoryRaw {
 		tHostInventory := models.HostInventory{}
-		err := json.Unmarshal([]byte(h), &tHostInventory)
+		err := json.Unmarshal(h.Data, &tHostInventory)
 		if err != nil {
 			return nil, err
 		}
@@ -101,11 +108,14 @@ func (c Client) GetClaims() (*models.Claims, error) {
 		subject := broker.Queries{}.Claims(c.nsPrefix)
 
 		claims := models.Claims{}
-		claimsRaw := c.CollectTimeout(subject, nil, nil)
+		claimsRaw, err := c.CollectTimeout(subject, nil, nil)
+		if err != nil {
+			return nil, err
+		}
 
 		for _, c := range claimsRaw {
 			tClaim := models.Claim{}
-			err := json.Unmarshal([]byte(c), &tClaim)
+			err := json.Unmarshal(c.Data, &tClaim)
 			if err != nil {
 				return nil, err
 			}
@@ -129,10 +139,13 @@ func (c Client) PerformActorAuction(actorRef string, constraints map[string]stri
 	}
 
 	acks := []*models.ActorAucutionAck{}
-	rawAcks := c.CollectTimeout(subject, &data_bytes, &timeout)
+	rawAcks, err := c.CollectTimeout(subject, &data_bytes, &timeout)
+	if err != nil {
+		return nil, err
+	}
 	for _, a := range rawAcks {
 		tAck := models.ActorAucutionAck{}
-		err := json.Unmarshal([]byte(a), &tAck)
+		err := json.Unmarshal(a.Data, &tAck)
 		if err != nil {
 			return nil, err
 		}
@@ -157,10 +170,13 @@ func (c Client) PerformProviderAuction(providerRef string, linkName string, cons
 		panic(err)
 	}
 	acks := []*models.ProviderAuctionAck{}
-	rawAcks := c.CollectTimeout(subject, &data_bytes, &timeout)
+	rawAcks, err := c.CollectTimeout(subject, &data_bytes, &timeout)
+	if err != nil {
+		return nil, err
+	}
 	for _, a := range rawAcks {
 		pAck := models.ProviderAuctionAck{}
-		err := json.Unmarshal([]byte(a), &pAck)
+		err := json.Unmarshal(a.Data, &pAck)
 		if err != nil {
 			return nil, err
 		}
@@ -184,10 +200,13 @@ func (c Client) StartActor(hostID string, actorRef string, count uint16, annotat
 		return nil, err
 	}
 
-	rawAcks := c.CollectTimeout(subject, &data_bytes, nil)
+	rawAcks, err := c.CollectTimeout(subject, &data_bytes, nil)
+	if err != nil {
+		return nil, err
+	}
 	for _, a := range rawAcks {
 		cAck := models.CtlOperationAck{}
-		err := json.Unmarshal([]byte(a), &cAck)
+		err := json.Unmarshal(a.Data, &cAck)
 		if err != nil {
 			return nil, err
 		}
@@ -221,14 +240,17 @@ func (c Client) StartProvider(hostID string, providerRef string, linkName string
 		if err != nil {
 			return nil, err
 		}
-		acks := c.CollectTimeout(subject, &data_bytes, nil)
+		acks, err := c.CollectTimeout(subject, &data_bytes, nil)
+		if err != nil {
+			return nil, err
+		}
 		if len(acks) < 1 {
 			return nil, errors.New("no host detected to start provider")
 		}
 
 		for _, a := range acks {
 			tAck := models.ProviderAuctionAck{}
-			err := json.Unmarshal([]byte(a), &tAck)
+			err := json.Unmarshal(a.Data, &tAck)
 			if err != nil {
 				return nil, err
 			}
@@ -241,10 +263,13 @@ func (c Client) StartProvider(hostID string, providerRef string, linkName string
 		return nil, err
 	}
 
-	rawAcks := c.CollectTimeout(subject, &data_bytes, nil)
+	rawAcks, err := c.CollectTimeout(subject, &data_bytes, nil)
+	if err != nil {
+		return nil, err
+	}
 	for _, a := range rawAcks {
 		cAck := models.CtlOperationAck{}
-		err := json.Unmarshal([]byte(a), &cAck)
+		err := json.Unmarshal(a.Data, &cAck)
 		if err != nil {
 			return nil, err
 		}
@@ -281,10 +306,13 @@ func (c Client) AdvertiseLink(actorID string, providerID string, contractID stri
 			panic(err)
 		}
 
-		rawAcks := c.CollectTimeout(subject, &data_bytes, nil)
+		rawAcks, err := c.CollectTimeout(subject, &data_bytes, nil)
+		if err != nil {
+			return nil, err
+		}
 		for _, a := range rawAcks {
 			cAck := models.CtlOperationAck{}
-			err := json.Unmarshal([]byte(a), &cAck)
+			err := json.Unmarshal(a.Data, &cAck)
 			if err != nil {
 				return nil, err
 			}
@@ -319,10 +347,13 @@ func (c Client) RemoveLink(actorID string, contractID string, linkName string) (
 		if err != nil {
 			panic(err)
 		}
-		rawAcks := c.CollectTimeout(subject, &data_bytes, nil)
+		rawAcks, err := c.CollectTimeout(subject, &data_bytes, nil)
+		if err != nil {
+			return nil, err
+		}
 		for _, a := range rawAcks {
 			cAck := models.CtlOperationAck{}
-			err := json.Unmarshal([]byte(a), &cAck)
+			err := json.Unmarshal(a.Data, &cAck)
 			if err != nil {
 				return nil, err
 			}
@@ -341,12 +372,15 @@ func (c Client) QueryLinks() (*models.LinkDefinitionList, error) {
 	} else {
 
 		subject := broker.Queries{}.LinkDefinitions(c.nsPrefix)
-		rawLinks := c.CollectTimeout(subject, nil, nil)
+		rawLinks, err := c.CollectTimeout(subject, nil, nil)
+		if err != nil {
+			return nil, err
+		}
 
 		ld := models.LinkDefinitionList{}
 		for _, r := range rawLinks {
 			tLink := core.LinkDefinition{}
-			err := json.Unmarshal([]byte(r), &tLink)
+			err := json.Unmarshal(r.Data, &tLink)
 			if err != nil {
 				return nil, err
 			}
@@ -372,10 +406,13 @@ func (c Client) UpdateActor(hostID string, existingActorID string, newActorRef s
 	if err != nil {
 		panic(err)
 	}
-	rawAcks := c.CollectTimeout(subject, &data_bytes, nil)
+	rawAcks, err := c.CollectTimeout(subject, &data_bytes, nil)
+	if err != nil {
+		return nil, err
+	}
 	for _, a := range rawAcks {
 		cAck := models.CtlOperationAck{}
-		err := json.Unmarshal([]byte(a), &cAck)
+		err := json.Unmarshal(a.Data, &cAck)
 		if err != nil {
 			return nil, err
 		}
@@ -401,10 +438,13 @@ func (c Client) StopActor(hostID string, actorRef string, count uint16, annotati
 	if err != nil {
 		panic(err)
 	}
-	rawAcks := c.CollectTimeout(subject, &data_bytes, nil)
+	rawAcks, err := c.CollectTimeout(subject, &data_bytes, nil)
+	if err != nil {
+		return nil, err
+	}
 	for _, a := range rawAcks {
 		cAck := models.CtlOperationAck{}
-		err := json.Unmarshal([]byte(a), &cAck)
+		err := json.Unmarshal(a.Data, &cAck)
 		if err != nil {
 			return nil, err
 		}
@@ -431,10 +471,13 @@ func (c Client) StopProvider(hostID string, providerRef string, linkName string,
 	if err != nil {
 		panic(err)
 	}
-	rawAcks := c.CollectTimeout(subject, &data_bytes, nil)
+	rawAcks, err := c.CollectTimeout(subject, &data_bytes, nil)
+	if err != nil {
+		return nil, err
+	}
 	for _, a := range rawAcks {
 		cAck := models.CtlOperationAck{}
-		err := json.Unmarshal([]byte(a), &cAck)
+		err := json.Unmarshal(a.Data, &cAck)
 		if err != nil {
 			return nil, err
 		}
@@ -458,10 +501,13 @@ func (c Client) StopHost(hostID string, timeout uint64) (*models.CtlOperationAck
 	if err != nil {
 		return nil, err
 	}
-	rawAcks := c.CollectTimeout(subject, &data_bytes, nil)
+	rawAcks, err := c.CollectTimeout(subject, &data_bytes, nil)
+	if err != nil {
+		return nil, err
+	}
 	for _, a := range rawAcks {
 		cAck := models.CtlOperationAck{}
-		err := json.Unmarshal([]byte(a), &cAck)
+		err := json.Unmarshal(a.Data, &cAck)
 		if err != nil {
 			return nil, err
 		}

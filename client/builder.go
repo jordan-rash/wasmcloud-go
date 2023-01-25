@@ -106,7 +106,7 @@ func WithLogger(inLogger logr.Logger) ClientBuilderOption {
 func (cb ClientBuilder) Build() (*Client, error) {
 	kvs, err := kv.GetKVStore(cb.nc, cb.nsPrefix, cb.jsDomain)
 	if err != nil {
-		cb.logger.Error(err, "kvstore not initalized, using legacy lattice communications")
+		cb.logger.Error(err, "kvstore not initalized, using legacy lattice communications", "lattice_prefix", cb.nsPrefix, "js_domain", cb.jsDomain)
 	}
 
 	c := Client{
