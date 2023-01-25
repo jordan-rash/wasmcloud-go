@@ -60,6 +60,7 @@ func TestNewBuilderWithoutKvStore(t *testing.T) {
 	assert.NotNil(t, client)
 
 	assert.Contains(t, buf.String(), "kvstore not initalized, using legacy lattice communications")
+	assert.Nil(t, client.kvstore)
 }
 
 func TestNewBuilderWithKvStore(t *testing.T) {
@@ -73,6 +74,7 @@ func TestNewBuilderWithKvStore(t *testing.T) {
 	assert.NotNil(t, client)
 
 	assert.NotContains(t, buf.String(), "kvstore not initalized, using legacy lattice communications")
+	assert.NotNil(t, client.kvstore)
 }
 
 func TestNewBuilderWithTopicPrefix(t *testing.T) {
