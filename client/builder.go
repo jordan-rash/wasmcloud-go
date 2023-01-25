@@ -6,11 +6,13 @@
 package client
 
 import (
-	"log"
 	"time"
 
+	"github.com/bombsimon/logrusr/v4"
+	"github.com/go-logr/logr"
 	"github.com/jordan-rash/wasmcloud-go/kv"
 	"github.com/nats-io/nats.go"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -19,6 +21,10 @@ const (
 	DEFAULT_JS_DOMAIN       string        = ""
 	DEFAULT_TIMEOUT         time.Duration = time.Second * 2
 	DEFAULT_AUCTION_TIMEOUT time.Duration = time.Second * 5
+)
+
+var (
+	DEFAULT_LOGGER logr.Logger = logrusr.New(logrus.New())
 )
 
 // A client builder that can be used to fluently provide configuration settings used to construct
@@ -30,6 +36,7 @@ type ClientBuilder struct {
 	timeout        time.Duration
 	auctionTimeout time.Duration
 	jsDomain       string
+	logger         logr.Logger
 }
 
 // Creates a new client builder
@@ -41,6 +48,7 @@ func New(nc *nats.Conn, options ...ClientBuilderOption) *ClientBuilder {
 		timeout:        DEFAULT_TIMEOUT,
 		auctionTimeout: DEFAULT_AUCTION_TIMEOUT,
 		jsDomain:       DEFAULT_JS_DOMAIN,
+		logger:         DEFAULT_LOGGER,
 	}
 	for _, opt := range options {
 		opt(cb)
@@ -86,12 +94,19 @@ func WithJsDomain(inJsDomain string) ClientBuilderOption {
 	}
 }
 
+// Override default logger.  Helpful with testing.  Can be anything that satisfies logr.Logger
+func WithLogger(inLogger logr.Logger) ClientBuilderOption {
+	return func(bc *ClientBuilder) {
+		bc.logger = inLogger
+	}
+}
+
 // Completes the generation of a control interface client. This function will attempt
 // to locate and attach to a metadata key-value bucket (`LATTICEDATA_{prefix}`) when starting
 func (cb ClientBuilder) Build() (*Client, error) {
 	kvs, err := kv.GetKVStore(cb.nc, cb.nsPrefix, cb.jsDomain)
 	if err != nil {
-		log.Print("kvstore not initalized, using legacy lattice communications")
+		cb.logger.Error(err, "kvstore not initalized, using legacy lattice communications")
 	}
 
 	c := Client{
@@ -101,6 +116,7 @@ func (cb ClientBuilder) Build() (*Client, error) {
 		timeout:        cb.timeout,
 		auctionTimeout: cb.auctionTimeout,
 		jsDomain:       cb.jsDomain,
+		logger:         cb.logger,
 		kvstore:        kvs,
 	}
 

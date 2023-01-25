@@ -3,32 +3,16 @@ package client
 import (
 	"encoding/json"
 	"errors"
-	"os"
 	"time"
 
-	"github.com/gobuffalo/envy"
+	"github.com/go-logr/logr"
 	"github.com/jordan-rash/wasmcloud-go/broker"
 	"github.com/jordan-rash/wasmcloud-go/kv"
 	"github.com/jordan-rash/wasmcloud-go/models"
 	"github.com/nats-io/nats.go"
-	log "github.com/sirupsen/logrus"
 
 	core "github.com/wasmcloud/interfaces/core/tinygo"
 )
-
-func init() {
-	log.SetOutput(os.Stdout)
-	switch envy.Get("LOG_LVL", "ERROR") {
-	case "WARN":
-		log.SetLevel(log.WarnLevel)
-	case "DEBUG":
-		log.SetLevel(log.DebugLevel)
-	case "TRACE":
-		log.SetLevel(log.TraceLevel)
-	default:
-		log.SetLevel(log.ErrorLevel)
-	}
-}
 
 // Lattice control interface client
 type Client struct {
@@ -39,6 +23,7 @@ type Client struct {
 	auctionTimeout time.Duration
 	jsDomain       string
 	kvstore        nats.KeyValue
+	logger         logr.Logger
 }
 
 // Deprecated: Use `client.New() ClientBuilder` instead.
@@ -187,7 +172,6 @@ func (c Client) PerformProviderAuction(providerRef string, linkName string, cons
 // NATs topic: cmd.{host}.la
 func (c Client) StartActor(hostID string, actorRef string, count uint16, annotations map[string]string) (*models.CtlOperationAck, error) {
 	subject := broker.Commands{}.StartActor(c.nsPrefix, hostID)
-	log.Debug(subject)
 	data := models.StartActorCommand{
 		ActorRef:    actorRef,
 		HostId:      hostID,
@@ -291,7 +275,6 @@ func (c Client) AdvertiseLink(actorID string, providerID string, contractID stri
 	} else {
 
 		subject := broker.AdvertiseLink(c.nsPrefix)
-		log.Debug(subject)
 
 		data_bytes, err := json.Marshal(ld)
 		if err != nil {
@@ -407,7 +390,6 @@ func (c Client) UpdateActor(hostID string, existingActorID string, newActorRef s
 // NATs topic: cmd.{host}.sa
 func (c Client) StopActor(hostID string, actorRef string, count uint16, annotations map[string]string) (*models.CtlOperationAck, error) {
 	subject := broker.Commands{}.StopActor(c.nsPrefix, hostID)
-	log.Debug(subject)
 	data := models.StopActorCommand{
 		HostId:      hostID,
 		ActorRef:    actorRef,
