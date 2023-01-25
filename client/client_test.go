@@ -52,10 +52,8 @@ func TestGetHosts(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, client)
 
-	// TODO: this error isnt what I expect it to be
-	// testing ErrNoResponders
-	// _, err = client.GetHosts(2 * time.Second)
-	// assert.ErrorIs(t, err, nats.ErrNoResponders)
+	_, err = client.GetHosts(2 * time.Second)
+	assert.ErrorIs(t, err, nats.ErrNoResponders)
 
 	s, _, err := startNewHost()
 	assert.NoError(t, err)

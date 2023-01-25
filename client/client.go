@@ -40,13 +40,15 @@ func (c Client) GetHosts(timeout time.Duration) (*models.Hosts, error) {
 	hosts := models.Hosts{}
 
 	subject := broker.Queries{}.Hosts(c.nsPrefix)
-	c.logger.Info("GetHosts subject", "subj", subject)
 	msgs, err := c.CollectTimeout(subject, nil, &timeout)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, m := range msgs {
+		if m.Header.Get("Status") == "503" {
+			return nil, nats.ErrNoResponders
+		}
 		tHost := models.Host{}
 		err := json.Unmarshal(m.Data, &tHost)
 		if err != nil {
