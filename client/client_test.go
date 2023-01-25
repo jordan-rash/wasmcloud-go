@@ -83,8 +83,8 @@ func TestGetHostInventory(t *testing.T) {
 
 	inv, err := client.GetHostInventory(hostid)
 	assert.NoError(t, err)
-	assert.Nil(t, inv.Actors)
-	assert.Nil(t, inv.Providers)
+	assert.Len(t, inv.Actors, 1)
+	assert.Len(t, inv.Providers, 1)
 	assert.Equal(t, hostid, inv.HostId)
 	assert.Contains(t, inv.Labels, "test_key")
 }
@@ -135,22 +135,32 @@ func startNewHost() ([]*nats.Subscription, string, error) {
 
 	s, _ = nc.Subscribe(fmt.Sprintf("wasmbus.ctl.default.get.%s.inv", pubClusterSeed), func(m *nats.Msg) {
 		hostInventory := struct {
-			HostID string            `json:"host_id"`
-			Labels map[string]string `json:"labels"`
-			Actors []struct {
-				Name    string `json:"name,omitempty"`
-				Hash    string `json:"hash"`
-				Version string `json:"version"`
-
-				Id        string `json:"id"`
-				ImageRef  string `json:"image_ref,omitempty"`
-				Instances []struct {
-					Annotations map[string]string `json:"annotations,omitempty"`
-					InstanceID  string            `json:"instance_id"`
-					Revision    int32             `json:"revision"`
-				} `json:"instances"`
-			} `json:"actors"`
-			Providers []struct {
+			HostID    string            `json:"host_id"`
+			Labels    map[string]string `json:"labels"`
+			Actors    interface{}       `json:"actors"`
+			Providers interface{}       `json:"providers"`
+		}{
+			HostID: pubClusterSeed,
+			Labels: map[string]string{"test_key": "test_value"},
+			Actors: []struct {
+				Name      string      `json:"name,omitempty"`
+				Hash      string      `json:"hash"`
+				Version   string      `json:"version"`
+				Id        string      `json:"id"`
+				ImageRef  string      `json:"image_ref,omitempty"`
+				Instances interface{} `json:"instances"`
+			}{
+				{Name: "myactor", Hash: "123", Version: "1", Id: "1", ImageRef: "derp.com",
+					Instances: []struct {
+						Annotations map[string]string `json:"annotations,omitempty"`
+						InstanceID  string            `json:"instance_id"`
+						Revision    int32             `json:"revision"`
+					}{
+						{Annotations: map[string]string{}, InstanceID: "1", Revision: 1},
+					},
+				},
+			},
+			Providers: []struct {
 				Annotations map[string]string `json:"annotations,omitempty"`
 				Id          string            `json:"id"`
 				ImageRef    string            `json:"image_ref,omitempty"`
@@ -158,12 +168,9 @@ func startNewHost() ([]*nats.Subscription, string, error) {
 				LinkName    string            `json:"link_name"`
 				Name        string            `json:"name,omitempty"`
 				Revision    int32             `json:"revision"`
-			} `json:"providers"`
-		}{
-			HostID:    pubClusterSeed,
-			Labels:    map[string]string{"test_key": "test_value"},
-			Actors:    nil,
-			Providers: nil,
+			}{
+				{Id: "2", ImageRef: "derp.com", ContractId: "wasmcloud:test", LinkName: "default", Name: "oompa_lumpa", Annotations: map[string]string{}},
+			},
 		}
 
 		sAck, _ := json.Marshal(hostInventory)
