@@ -1,6 +1,6 @@
-package client
+package models
 
-type claim struct {
+type Claim struct {
 	CallAlias string `json:"call_alias"`
 	Caps      string `json:"caps"`
 	Iss       string `json:"iss"`
@@ -11,6 +11,6 @@ type claim struct {
 	Version   string `json:"version"`
 }
 
-type claims struct {
-	Claims []claim `json:"claims,omitempty"`
+type Claims struct {
+	Claims []Claim `json:"claims,omitempty"`
 }

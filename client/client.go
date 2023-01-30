@@ -2,366 +2,520 @@ package client
 
 import (
 	"encoding/json"
-	"os"
+	"errors"
 	"time"
 
-	"github.com/gobuffalo/envy"
+	"github.com/go-logr/logr"
 	"github.com/jordan-rash/wasmcloud-go/broker"
+	"github.com/jordan-rash/wasmcloud-go/kv"
+	"github.com/jordan-rash/wasmcloud-go/models"
 	"github.com/nats-io/nats.go"
-	log "github.com/sirupsen/logrus"
+
+	core "github.com/wasmcloud/interfaces/core/tinygo"
 )
 
-func init() {
-	log.SetOutput(os.Stdout)
-	switch envy.Get("LOG_LVL", "ERROR") {
-	case "WARN":
-		log.SetLevel(log.WarnLevel)
-	case "DEBUG":
-		log.SetLevel(log.DebugLevel)
-	case "TRACE":
-		log.SetLevel(log.TraceLevel)
-	default:
-		log.SetLevel(log.ErrorLevel)
-	}
+// Lattice control interface client
+type Client struct {
+	nc             *nats.Conn
+	topicPrefix    string
+	nsPrefix       string
+	timeout        time.Duration
+	auctionTimeout time.Duration
+	jsDomain       string
+	kvstore        nats.KeyValue
+	logger         logr.Logger
 }
 
-type client struct {
-	nc       *nats.Conn
-	nsprefix string
-	timeout  time.Duration
-}
-
-func New(nc *nats.Conn, prefix string, timeout time.Duration) client {
-	return client{
-		nc,
-		prefix,
-		timeout,
+// Deprecated: Use `client.New() ClientBuilder` instead.
+func New_Old(nc *nats.Conn, prefix string, timeout time.Duration) Client {
+	return Client{
+		nc:          nc,
+		topicPrefix: prefix,
+		timeout:     timeout,
 	}
 }
 
 // NATs topic: ping.hosts
-func (c client) GetHosts(timeout time.Duration) []host {
-	var hosts []host
+func (c Client) GetHosts(timeout time.Duration) (*models.Hosts, error) {
+	hosts := models.Hosts{}
 
-	subject := broker.Queries{}.Hosts(c.nsprefix)
-	log.Debug(subject)
-	hostsRaw := c.printResults(c.nc, subject, nil, &timeout)
-	for _, h := range hostsRaw {
-		tHost := host{}
-		json.Unmarshal([]byte(h), &tHost)
+	subject := broker.Queries{}.Hosts(c.nsPrefix)
+	msgs, err := c.CollectTimeout(subject, nil, &timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, m := range msgs {
+		if m.Header.Get("Status") == "503" {
+			return nil, nats.ErrNoResponders
+		}
+		tHost := models.Host{}
+		err := json.Unmarshal(m.Data, &tHost)
+		if err != nil {
+			return nil, err
+		}
 		hosts = append(hosts, tHost)
 	}
 
-	return hosts
+	return &hosts, nil
 }
 
 // NATs topic: get.{host}.inv
-func (c client) GetHostInventory(hostId string) hostStatus {
-	subject := broker.Queries{}.HostInventory(c.nsprefix, hostId)
-	log.Debug(subject)
-
-	hoststatus := c.printResults(c.nc, subject, nil, nil)
-	hs := hostStatus{}
-
-	if len(hoststatus) < 1 {
-		log.Error("Did not find host status")
-		return hostStatus{}
+func (c Client) GetHostInventory(hostId string) (*models.HostInventory, error) {
+	subject := broker.Queries{}.HostInventory(c.nsPrefix, hostId)
+	hostInventoryRaw, err := c.CollectTimeout(subject, nil, nil)
+	if err != nil {
+		return nil, err
 	}
-	json.Unmarshal([]byte(hoststatus[0]), &hs)
 
-	return hs
+	if len(hostInventoryRaw) < 1 {
+		return nil, errors.New("did not find host status")
+	}
+
+	for _, h := range hostInventoryRaw {
+		tHostInventory := models.HostInventory{}
+		err := json.Unmarshal(h.Data, &tHostInventory)
+		if err != nil {
+			return nil, err
+		}
+		if tHostInventory.HostId == hostId {
+			return &tHostInventory, nil
+		}
+	}
+
+	return nil, errors.New("did not find host status")
 }
 
 // NATs topic: get.claims
-func (c client) GetClaims() claims {
-	subject := broker.Queries{}.Claims(c.nsprefix)
-	log.Debug(subject)
+func (c Client) GetClaims() (*models.Claims, error) {
+	if c.kvstore != nil {
+		ret := models.Claims{}
+		resp, err := kv.GetClaims(c.kvstore)
+		if err != nil {
+			return nil, err
+		}
+		claims := resp.Claims
+		for _, kvm := range claims {
+			for _, v := range kvm {
+				tClaim := models.Claim{}
+				err := json.Unmarshal([]byte(v), &tClaim)
+				if err != nil {
+					return nil, err
+				}
+				ret.Claims = append(ret.Claims, tClaim)
+			}
+		}
+		return &ret, nil
+	} else {
+		subject := broker.Queries{}.Claims(c.nsPrefix)
 
-	claims := claims{}
-	claimsRaw := c.printResults(c.nc, subject, nil, nil)
-	json.Unmarshal([]byte(claimsRaw[0]), &claims)
+		claims := models.Claims{}
+		claimsRaw, err := c.CollectTimeout(subject, nil, nil)
+		if err != nil {
+			return nil, err
+		}
 
-	return claims
+		for _, c := range claimsRaw {
+			tClaim := models.Claim{}
+			err := json.Unmarshal(c.Data, &tClaim)
+			if err != nil {
+				return nil, err
+			}
+			claims.Claims = append(claims.Claims, tClaim)
+		}
+
+		return &claims, nil
+	}
 }
 
 // NATs topic: auction.actor
-func (c client) PerformActorAuction(actorRef string, constraints map[string]string, timeout time.Duration) []string {
-	subject := broker.ActorAuctionSubject(c.nsprefix)
-	log.Debug(subject)
-	data := struct {
-		ActorRef    string            `json:"actor_ref"`
-		Constraints map[string]string `json:"constraints,omitempty"`
-	}{
+func (c Client) PerformActorAuction(actorRef string, constraints map[string]string, timeout time.Duration) ([]*models.ActorAucutionAck, error) {
+	subject := broker.ActorAuctionSubject(c.nsPrefix)
+	data := models.ActorAuctionRequest{
 		ActorRef:    actorRef,
 		Constraints: constraints,
 	}
-	b_data, err := json.Marshal(data)
+	data_bytes, err := json.Marshal(data)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return c.printResults(c.nc, subject, &b_data, &timeout)
+
+	acks := []*models.ActorAucutionAck{}
+	rawAcks, err := c.CollectTimeout(subject, &data_bytes, &timeout)
+	if err != nil {
+		return nil, err
+	}
+	for _, a := range rawAcks {
+		tAck := models.ActorAucutionAck{}
+		err := json.Unmarshal(a.Data, &tAck)
+		if err != nil {
+			return nil, err
+		}
+		acks = append(acks, &tAck)
+	}
+
+	return acks, nil
+
 }
 
 // NATs topic: auction.provider
-func (c client) PerformProviderAuction(providerRef string, linkName string, constraints map[string]string, timeout time.Duration) []string {
-	subject := broker.ProviderAuctionSubject(c.nsprefix)
-	log.Debug(subject)
-	data := struct {
-		ProviderRef string            `json:"provider_ref"`
-		LinkName    string            `json:"link_name"`
-		Constraints map[string]string `json:"constraints,omitempty"`
-	}{
+func (c Client) PerformProviderAuction(providerRef string, linkName string, constraints map[string]string, timeout time.Duration) ([]*models.ProviderAuctionAck, error) {
+	subject := broker.ProviderAuctionSubject(c.nsPrefix)
+	data := models.ProviderAuctionRequest{
 		ProviderRef: providerRef,
 		Constraints: constraints,
 		LinkName:    linkName,
 	}
-	b_data, err := json.Marshal(data)
+
+	data_bytes, err := json.Marshal(data)
 	if err != nil {
 		panic(err)
 	}
-	return c.printResults(c.nc, subject, &b_data, &timeout)
+	acks := []*models.ProviderAuctionAck{}
+	rawAcks, err := c.CollectTimeout(subject, &data_bytes, &timeout)
+	if err != nil {
+		return nil, err
+	}
+	for _, a := range rawAcks {
+		pAck := models.ProviderAuctionAck{}
+		err := json.Unmarshal(a.Data, &pAck)
+		if err != nil {
+			return nil, err
+		}
+		acks = append(acks, &pAck)
+	}
+	return acks, nil
 }
 
 // NATs topic: cmd.{host}.la
-func (c client) StartActor(hostID string, actorRef string, count int, annotations map[string]string) []string {
-	subject := broker.Commands{}.StartActor(c.nsprefix, hostID)
-	log.Debug(subject)
-	data := struct {
-		ActorRef    string            `json:"actor_ref"`
-		HostID      string            `json:"host_id"`
-		Count       int               `json:"count"`
-		Annotations map[string]string `json:"annotations,omitempty"`
-	}{
+func (c Client) StartActor(hostID string, actorRef string, count uint16, annotations map[string]string) (*models.CtlOperationAck, error) {
+	subject := broker.Commands{}.StartActor(c.nsPrefix, hostID)
+	data := models.StartActorCommand{
 		ActorRef:    actorRef,
-		HostID:      hostID,
+		HostId:      hostID,
 		Count:       count,
 		Annotations: annotations,
 	}
 
-	b_data, err := json.Marshal(data)
+	data_bytes, err := json.Marshal(data)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return c.printResults(c.nc, subject, &b_data, nil)
+	rawAcks, err := c.CollectTimeout(subject, &data_bytes, nil)
+	if err != nil {
+		return nil, err
+	}
+	for _, a := range rawAcks {
+		cAck := models.CtlOperationAck{}
+		err := json.Unmarshal(a.Data, &cAck)
+		if err != nil {
+			return nil, err
+		}
+		if cAck.Accepted {
+			return &cAck, nil
+		}
+	}
+	return nil, errors.New("did not receive ack")
 }
 
 // NATs topic: cmd.{host}.lp
-func (c client) StartProvider(hostID string, providerRef string, linkName string, annotations map[string]string, providerConfiguration string) []string {
-	subject := broker.Commands{}.StartProvider(c.nsprefix, hostID)
-	log.Debug(subject)
-	data := struct {
-		ProviderRef   string            `json:"provider_ref"`
-		HostID        string            `json:"host_id"`
-		LinkName      string            `json:"link_name"`
-		Annotations   map[string]string `json:"annotations,omitempty"`
-		Configuration string            `json:"configuration"`
-	}{
+func (c Client) StartProvider(hostID string, providerRef string, linkName string, annotations map[string]string, providerConfiguration string) (*models.CtlOperationAck, error) {
+	subject := broker.Commands{}.StartProvider(c.nsPrefix, hostID)
+	startCmd := models.StartProviderCommand{
 		ProviderRef:   providerRef,
-		HostID:        hostID,
+		HostId:        hostID,
 		LinkName:      linkName,
 		Annotations:   annotations,
 		Configuration: providerConfiguration,
 	}
 
-	b_data, err := json.Marshal(data)
-	if err != nil {
-		panic(err)
+	if hostID == "" {
+		subject := broker.ProviderAuctionSubject(c.nsPrefix)
+		proReq := models.ProviderAuctionRequest{
+			ProviderRef: providerRef,
+			LinkName:    linkName,
+			// TODO: where are these contrainsts??
+			Constraints: models.ConstraintMap{},
+		}
+		data_bytes, err := json.Marshal(proReq)
+		if err != nil {
+			return nil, err
+		}
+		acks, err := c.CollectTimeout(subject, &data_bytes, nil)
+		if err != nil {
+			return nil, err
+		}
+		if len(acks) < 1 {
+			return nil, errors.New("no host detected to start provider")
+		}
+
+		for _, a := range acks {
+			tAck := models.ProviderAuctionAck{}
+			err := json.Unmarshal(a.Data, &tAck)
+			if err != nil {
+				return nil, err
+			}
+			startCmd.HostId = tAck.HostId
+		}
 	}
 
-	return c.printResults(c.nc, subject, &b_data, nil)
+	data_bytes, err := json.Marshal(startCmd)
+	if err != nil {
+		return nil, err
+	}
+
+	rawAcks, err := c.CollectTimeout(subject, &data_bytes, nil)
+	if err != nil {
+		return nil, err
+	}
+	for _, a := range rawAcks {
+		cAck := models.CtlOperationAck{}
+		err := json.Unmarshal(a.Data, &cAck)
+		if err != nil {
+			return nil, err
+		}
+		if cAck.Accepted {
+			return &cAck, nil
+		}
+	}
+
+	return nil, errors.New("did not receive ack")
 }
 
 // NATs topic: linkdefs.put
-func (c client) AdvertiseLink(actorID string, providerID string, contractID string, linkName string, values map[string]string) []string {
-	subject := broker.AdvertiseLink(c.nsprefix)
-	log.Debug(subject)
-	data := struct {
-		ActorID    string            `json:"actor_id"`
-		ProviderID string            `json:"provider_id"`
-		ContractID string            `json:"contract_id"`
-		LinkName   string            `json:"link_name"`
-		Value      map[string]string `json:"values,omitempty"`
-	}{
-		ActorID:    actorID,
-		ProviderID: providerID,
-		ContractID: contractID,
+func (c Client) AdvertiseLink(actorID string, providerID string, contractID string, linkName string, values map[string]string) (*models.CtlOperationAck, error) {
+	ld := core.LinkDefinition{
+		ActorId:    actorID,
+		ProviderId: providerID,
+		ContractId: contractID,
 		LinkName:   linkName,
-		Value:      values,
+		Values:     values,
 	}
 
-	b_data, err := json.Marshal(data)
-	if err != nil {
-		panic(err)
+	if c.kvstore != nil {
+		err := kv.PutLink(c.kvstore, ld)
+		if err != nil {
+			return nil, err
+		}
+		return &models.CtlOperationAck{Accepted: true, Error: ""}, nil
+	} else {
+
+		subject := broker.AdvertiseLink(c.nsPrefix)
+
+		data_bytes, err := json.Marshal(ld)
+		if err != nil {
+			panic(err)
+		}
+
+		rawAcks, err := c.CollectTimeout(subject, &data_bytes, nil)
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range rawAcks {
+			cAck := models.CtlOperationAck{}
+			err := json.Unmarshal(a.Data, &cAck)
+			if err != nil {
+				return nil, err
+			}
+			if cAck.Accepted {
+				return &cAck, nil
+
+			}
+		}
+
+		return nil, errors.New("did not receive ack")
 	}
-
-	return c.printResults(c.nc, subject, &b_data, nil)
-
 }
 
 // NATs topic: linkdefs.del
-func (c client) RemoveLink(actorID string, contractID string, linkName string) []string {
-	subject := broker.RemoveLink(c.nsprefix)
-	log.Debug(subject)
-	data := struct {
-		ActorID    string `json:"actor_id"`
-		ContractID string `json:"contract_id"`
-		LinkName   string `json:"link_name"`
-	}{
-		ActorID:    actorID,
-		ContractID: contractID,
+func (c Client) RemoveLink(actorID string, contractID string, linkName string) (*models.CtlOperationAck, error) {
+	removeLinkReq := models.RemoveLinkDefinationRequest{
+		ActorId:    actorID,
+		ContractId: contractID,
 		LinkName:   linkName,
 	}
 
-	b_data, err := json.Marshal(data)
-	if err != nil {
-		panic(err)
+	if c.kvstore != nil {
+		err := kv.DeleteLink(c.kvstore, removeLinkReq)
+		if err != nil {
+			return nil, err
+		}
+		return &models.CtlOperationAck{Accepted: true, Error: ""}, nil
+	} else {
+
+		subject := broker.RemoveLink(c.nsPrefix)
+		data_bytes, err := json.Marshal(removeLinkReq)
+		if err != nil {
+			panic(err)
+		}
+		rawAcks, err := c.CollectTimeout(subject, &data_bytes, nil)
+		if err != nil {
+			return nil, err
+		}
+		for _, a := range rawAcks {
+			cAck := models.CtlOperationAck{}
+			err := json.Unmarshal(a.Data, &cAck)
+			if err != nil {
+				return nil, err
+			}
+			if cAck.Accepted {
+				return &cAck, nil
+			}
+		}
+		return nil, errors.New("did not receive ack")
 	}
-	return c.printResults(c.nc, subject, &b_data, nil)
 }
 
 // NATs topic: get.links
-func (c client) QueryLinks() []string {
-	subject := broker.Queries{}.LinkDefinitions(c.nsprefix)
-	log.Debug(subject)
-	return c.printResults(c.nc, subject, nil, nil)
+func (c Client) QueryLinks() (*models.LinkDefinitionList, error) {
+	if c.kvstore != nil {
+		return kv.GetLinks(c.kvstore)
+	} else {
+
+		subject := broker.Queries{}.LinkDefinitions(c.nsPrefix)
+		rawLinks, err := c.CollectTimeout(subject, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		ld := models.LinkDefinitionList{}
+		for _, r := range rawLinks {
+			tLink := core.LinkDefinition{}
+			err := json.Unmarshal(r.Data, &tLink)
+			if err != nil {
+				return nil, err
+			}
+
+			ld.Links = append(ld.Links, tLink)
+		}
+
+		return &ld, nil
+	}
 }
 
 // NATs topic: cmd.{host}.upd
-func (c client) UpdateActor(hostID string, existingActorID string, newActorRef string, annotations map[string]string) []string {
-	subject := broker.Commands{}.UpdateActor(c.nsprefix, hostID)
-	log.Debug(subject)
-	data := struct {
-		HostID          string            `json:"host_id"`
-		ExistingActorID string            `json:"actor_id"`
-		NewActorRef     string            `json:"new_actor_ref"`
-		Annotations     map[string]string `json:"annotations,omitempty"`
-	}{
-		HostID:          hostID,
-		ExistingActorID: existingActorID,
-		NewActorRef:     newActorRef,
-		Annotations:     annotations,
+func (c Client) UpdateActor(hostID string, existingActorID string, newActorRef string, annotations map[string]string) (*models.CtlOperationAck, error) {
+	subject := broker.Commands{}.UpdateActor(c.nsPrefix, hostID)
+	data := models.UpdateActorCommand{
+		ActorRef:    existingActorID,
+		Annotations: annotations,
+		HostId:      hostID,
+		NewActorRef: newActorRef,
 	}
 
-	b_data, err := json.Marshal(data)
+	data_bytes, err := json.Marshal(data)
 	if err != nil {
 		panic(err)
 	}
-	return c.printResults(c.nc, subject, &b_data, nil)
+	rawAcks, err := c.CollectTimeout(subject, &data_bytes, nil)
+	if err != nil {
+		return nil, err
+	}
+	for _, a := range rawAcks {
+		cAck := models.CtlOperationAck{}
+		err := json.Unmarshal(a.Data, &cAck)
+		if err != nil {
+			return nil, err
+		}
+		if cAck.Accepted {
+			return &cAck, nil
+		}
+	}
+
+	return nil, errors.New("did not receive ack")
 }
 
 // NATs topic: cmd.{host}.sa
-func (c client) StopActor(hostID string, actorRef string, count int, annotations map[string]string) []string {
-	subject := broker.Commands{}.StopActor(c.nsprefix, hostID)
-	log.Debug(subject)
-	data := struct {
-		HostID      string            `json:"host_id"`
-		ActorRef    string            `json:"actor_ref"`
-		Count       int               `json:"count"`
-		Annotations map[string]string `json:"annotations,omitempty"`
-	}{
-		HostID:      hostID,
+func (c Client) StopActor(hostID string, actorRef string, count uint16, annotations map[string]string) (*models.CtlOperationAck, error) {
+	subject := broker.Commands{}.StopActor(c.nsPrefix, hostID)
+	data := models.StopActorCommand{
+		HostId:      hostID,
 		ActorRef:    actorRef,
 		Count:       count,
 		Annotations: annotations,
 	}
 
-	b_data, err := json.Marshal(data)
+	data_bytes, err := json.Marshal(data)
 	if err != nil {
 		panic(err)
 	}
-	return c.printResults(c.nc, subject, &b_data, nil)
+	rawAcks, err := c.CollectTimeout(subject, &data_bytes, nil)
+	if err != nil {
+		return nil, err
+	}
+	for _, a := range rawAcks {
+		cAck := models.CtlOperationAck{}
+		err := json.Unmarshal(a.Data, &cAck)
+		if err != nil {
+			return nil, err
+		}
+		if cAck.Accepted {
+			return &cAck, nil
+		}
+	}
+
+	return nil, errors.New("did not receive ack")
 }
 
 // NATs topic: cmd.{host}.sp
-func (c client) StopProvider(hostID string, providerRef string, linkName string, contractID string, annotations map[string]string) []string {
-	subject := broker.Commands{}.StopProvider(c.nsprefix, hostID)
-	log.Debug(subject)
-	data := struct {
-		HostID      string            `json:"host_id"`
-		ProviderRef string            `json:"provider_ref"`
-		LinkName    string            `json:"link_name"`
-		ContractID  string            `json:"contract_id"`
-		Annotations map[string]string `json:"annotations,omitempty"`
-	}{
-		HostID:      hostID,
+func (c Client) StopProvider(hostID string, providerRef string, linkName string, contractID string, annotations map[string]string) (*models.CtlOperationAck, error) {
+	subject := broker.Commands{}.StopProvider(c.nsPrefix, hostID)
+	data := models.StopProviderCommand{
+		HostId:      hostID,
 		ProviderRef: providerRef,
 		LinkName:    linkName,
-		ContractID:  contractID,
+		ContractId:  contractID,
 		Annotations: annotations,
 	}
 
-	b_data, err := json.Marshal(data)
+	data_bytes, err := json.Marshal(data)
 	if err != nil {
 		panic(err)
 	}
-	return c.printResults(c.nc, subject, &b_data, nil)
+	rawAcks, err := c.CollectTimeout(subject, &data_bytes, nil)
+	if err != nil {
+		return nil, err
+	}
+	for _, a := range rawAcks {
+		cAck := models.CtlOperationAck{}
+		err := json.Unmarshal(a.Data, &cAck)
+		if err != nil {
+			return nil, err
+		}
+		if cAck.Accepted {
+			return &cAck, nil
+		}
+	}
+
+	return nil, errors.New("did not receive ack")
 }
 
 // NATs topic: cmd.{host}.stop
-func (c client) StopHost(hostID string, timeout time.Duration) []string {
-	subject := broker.Commands{}.StopHost(c.nsprefix, hostID)
-	log.Debug(subject)
-
-	data := struct {
-		HostID  string `json:"host_id"`
-		Timeout int64  `json:"timeout"`
-	}{
-		HostID:  hostID,
-		Timeout: timeout.Milliseconds(),
+func (c Client) StopHost(hostID string, timeout uint64) (*models.CtlOperationAck, error) {
+	subject := broker.Commands{}.StopHost(c.nsPrefix, hostID)
+	data := models.StopHostCommand{
+		HostId:  hostID,
+		Timeout: timeout,
 	}
-	b_data, err := json.Marshal(data)
+
+	data_bytes, err := json.Marshal(data)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return c.printResults(c.nc, subject, &b_data, &timeout)
-}
-
-func (c client) printResults(nc *nats.Conn, subject string, data *[]byte, timeoutOverride *time.Duration) []string {
-	timeout := c.timeout
-	if timeoutOverride != nil {
-		timeout = *timeoutOverride
-	}
-	sub := nats.NewInbox()
-	ch := make(chan *nats.Msg)
-	s, err := nc.ChanSubscribe(sub, ch)
+	rawAcks, err := c.CollectTimeout(subject, &data_bytes, nil)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-
-	if data == nil {
-		err := nc.PublishRequest(subject, sub, nil)
+	for _, a := range rawAcks {
+		cAck := models.CtlOperationAck{}
+		err := json.Unmarshal(a.Data, &cAck)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
-	} else {
-		err := nc.PublishRequest(subject, sub, *data)
-		if err != nil {
-			panic(err)
+		if cAck.Accepted {
+			return &cAck, nil
 		}
 	}
-
-	var ret []string
-	for {
-		select {
-		case msg := <-ch:
-			ret = append(ret, (string(msg.Data)))
-		case <-time.After(timeout):
-			s.Unsubscribe()
-			s.Drain()
-			if envy.Get("PRETTY_PRINT", "false") == "true" {
-				PrettyPrint(ret)
-			}
-			return ret
-		}
-	}
-}
-
-// this is temporary
-func PrettyPrint(v interface{}) (err error) {
-	b, err := json.MarshalIndent(v, "", "  ")
-	if err == nil {
-		log.Println(string(b))
-	}
-	return
+	return nil, errors.New("did not receive ack")
 }
